@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState, useRef, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
@@ -18,14 +18,13 @@ const PAKETE = [
   { id: 'team',    name: 'Team',        token: 300, preis: 59, priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_TEAM    || '' },
 ]
 
-const SCHRIFTEN = ['helvetica', 'georgia', 'courier', 'arial']
 const STILE = [
   { id: 'modern',    label: 'Modern',    desc: 'Sauber, minimalistisch' },
   { id: 'klassisch', label: 'Klassisch', desc: 'Traditionell, seriös' },
   { id: 'bold',      label: 'Bold',      desc: 'Kräftig, auffällig' },
 ]
 
-export default function ProfilPage() {
+function ProfilPageInner() {
   const router = useRouter()
   const searchParams = useSearchParams()
   const [betrieb, setBetrieb] = useState<Betrieb | null>(null)
@@ -41,7 +40,6 @@ export default function ProfilPage() {
 
   useEffect(() => {
     loadProfil()
-    // Stripe Success/Cancel
     if (searchParams.get('success') === '1') {
       const token = searchParams.get('token')
       setSuccessMsg(`✓ Zahlung erfolgreich! ${token} Token wurden gutgeschrieben.`)
@@ -93,7 +91,6 @@ export default function ProfilPage() {
     const ext  = file.name.split('.').pop()
     const path = `${user.id}/logo.${ext}`
 
-    // Altes Logo löschen falls vorhanden
     await supabase.storage.from('logos').remove([path])
 
     const { error } = await supabase.storage.from('logos').upload(path, file, { upsert: true })
@@ -257,7 +254,6 @@ export default function ProfilPage() {
                 <p className="text-xs text-[#444] uppercase tracking-widest">Vorschau</p>
                 <span className="text-xs text-[#555]">So sehen deine Dokumente aus</span>
               </div>
-              {/* Mini-Briefkopf Vorschau */}
               <div className="p-6">
                 <div style={{
                   background: 'white',
@@ -436,5 +432,13 @@ export default function ProfilPage() {
       </div>
       <div className="h-24 md:h-8"/>
     </div>
+  )
+}
+
+export default function ProfilPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0c0c0c]"/>}>
+      <ProfilPageInner />
+    </Suspense>
   )
 }

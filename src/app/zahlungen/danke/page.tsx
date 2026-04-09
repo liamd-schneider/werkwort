@@ -1,9 +1,10 @@
 'use client'
 
+import { Suspense } from 'react'
 import { useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 
-export default function ZahlungDankePage() {
+function ZahlungDankeInner() {
   const searchParams = useSearchParams()
   const nr = searchParams.get('nr') || ''
 
@@ -25,5 +26,13 @@ export default function ZahlungDankePage() {
         <p className="text-xs text-[#333]">Diese Seite kann geschlossen werden.</p>
       </div>
     </div>
+  )
+}
+
+export default function ZahlungDankePage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0c0c0c]"/>}>
+      <ZahlungDankeInner />
+    </Suspense>
   )
 }

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -15,15 +15,15 @@ interface PayPalStatus {
   merchant_id?: string; email?: string; verbunden_am?: string
 }
 
-export default function ZahlungenPage() {
+function ZahlungenPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const [stripeStatus, setStripe]  = useState<StripeStatus | null>(null)
-  const [paypalStatus, setPayPal]  = useState<PayPalStatus | null>(null)
-  const [loading, setLoading]      = useState(true)
+  const [stripeStatus, setStripe]   = useState<StripeStatus | null>(null)
+  const [paypalStatus, setPayPal]   = useState<PayPalStatus | null>(null)
+  const [loading, setLoading]       = useState(true)
   const [stripeLoad, setStripeLoad] = useState(false)
   const [paypalLoad, setPaypalLoad] = useState(false)
-  const [banner, setBanner]        = useState<{ msg: string; ok: boolean } | null>(null)
+  const [banner, setBanner]         = useState<{ msg: string; ok: boolean } | null>(null)
 
   useEffect(() => {
     loadStatus()
@@ -185,12 +185,20 @@ export default function ZahlungenPage() {
         </div>
 
         {/* PayPal Connect */}
-        
+
         <p className="text-xs text-[#333] text-center pb-4">
           Werkwort nimmt keine Provision · Gebühren gehen direkt an Stripe Du behältst 100 % deines Umsatzes
         </p>
       </div>
       <div className="h-8"/>
     </div>
+  )
+}
+
+export default function ZahlungenPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0c0c0c]"/>}>
+      <ZahlungenPageInner />
+    </Suspense>
   )
 }
