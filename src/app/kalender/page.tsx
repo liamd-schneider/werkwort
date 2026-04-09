@@ -1,8 +1,6 @@
 'use client'
 
-export const dynamic = 'force-dynamic'
-
-import { useEffect, useState } from 'react'
+import { useEffect, useState, Suspense } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
@@ -19,7 +17,7 @@ interface Termin {
   brutto: number; status: string; created_at: string
 }
 
-export default function KalenderPage() {
+function KalenderPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const [termine, setTermine]           = useState<Termin[]>([])
@@ -55,7 +53,6 @@ export default function KalenderPage() {
         .order('created_at', { ascending: false })
         .limit(20),
 
-      // Google Status laden
       fetch('/api/kalender/google?action=status', {
         headers: { 'Authorization': `Bearer ${(await supabase.auth.getSession()).data.session?.access_token}` }
       }).then(r => r.json()).catch(() => ({ verbunden: false }))
@@ -168,7 +165,6 @@ export default function KalenderPage() {
           </div>
 
           {process.env.NEXT_PUBLIC_GOOGLE_CONFIGURED !== '1' ? (
-            // Google noch nicht konfiguriert — Anleitung zeigen
             <div className="bg-[#111] border border-[#2a2a2a] rounded-xl p-5 space-y-3">
               <p className="text-sm font-medium text-[#d4e840]">Einrichtung erforderlich</p>
               <p className="text-xs text-[#555] leading-relaxed">
@@ -199,10 +195,7 @@ export default function KalenderPage() {
                 className="flex-1 py-2.5 bg-[#d4e840] text-black text-sm font-medium rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
                 {syncLoading
                   ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Synchronisiere...</>
-                  : <>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round"/></svg>
-                    Jetzt synchronisieren
-                  </>}
+                  : <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round"/></svg>Jetzt synchronisieren</>}
               </button>
               <button type="button" onClick={googleTrennen}
                 className="px-4 py-2.5 border border-red-500/20 text-red-500/60 text-sm rounded-xl hover:text-red-400 hover:border-red-500/40 transition-all">
@@ -309,5 +302,13 @@ export default function KalenderPage() {
       </div>
       <div className="h-8"/>
     </div>
+  )
+}
+
+export default function KalenderPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-[#0c0c0c]"/>}>
+      <KalenderPageInner />
+    </Suspense>
   )
 }
