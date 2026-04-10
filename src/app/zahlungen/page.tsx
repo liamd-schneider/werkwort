@@ -11,51 +11,41 @@ interface StripeStatus {
   details_submitted?: boolean; email?: string; verbunden_am?: string
 }
 
-function ZahlungenPageInner() {
+function ZahlungenInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
-  const [stripeStatus, setStripe]   = useState<StripeStatus | null>(null)
+  const [status, setStatus]         = useState<StripeStatus | null>(null)
   const [loading, setLoading]       = useState(true)
   const [stripeLoad, setStripeLoad] = useState(false)
   const [banner, setBanner]         = useState<{ msg: string; ok: boolean } | null>(null)
 
-  useEffect(() => {
-    loadStatus()
-  }, [])
+  useEffect(() => { loadStatus() }, [])
 
   useEffect(() => {
     if (!searchParams) return
     if (searchParams.get('stripe') === 'verbunden') {
-      setBanner({ msg: '✓ Stripe erfolgreich verbunden! Du kannst jetzt Zahlungslinks auf Rechnungen erstellen.', ok: true })
+      setBanner({ msg: '✓ Stripe verbunden! Deine Rechnungen haben jetzt einen Zahlungslink.', ok: true })
       setTimeout(() => setBanner(null), 6000)
+    }
+    if (searchParams.get('stripe') === 'refresh') {
+      setBanner({ msg: 'Bitte schließe das Onboarding ab.', ok: false })
+      setTimeout(() => setBanner(null), 4000)
     }
   }, [searchParams])
 
   const loadStatus = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/auth'); return }
     try {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/auth'); return }
-
-      console.log('[Zahlungen] Session OK, lade Stripe-Status...')
-
-      const h = { 'Authorization': `Bearer ${session.access_token}` }
-
-      const stripeRes = await fetch('/api/connect/stripe?action=status', { headers: h })
-      console.log('[Zahlungen] Stripe response status:', stripeRes.status, stripeRes.headers.get('content-type'))
-
-      const stripeText = await stripeRes.text()
-      console.log('[Zahlungen] Stripe raw response:', stripeText.slice(0, 200))
-
-      const s = JSON.parse(stripeText)
-      setStripe(s)
-    } catch (err) {
-      console.error('[Zahlungen] Fehler beim Laden:', err)
-    } finally {
-      setLoading(false)
-    }
+      const res = await fetch('/api/connect/stripe?action=status', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
+      })
+      setStatus(await res.json())
+    } catch { setStatus({ verbunden: false, aktiv: false }) }
+    setLoading(false)
   }
 
-  const stripeVerbinden = async () => {
+  const verbinden = async () => {
     setStripeLoad(true)
     const { data: { session } } = await supabase.auth.getSession()
     const res = await fetch('/api/connect/stripe?action=connect', {
@@ -66,12 +56,15 @@ function ZahlungenPageInner() {
     window.location.href = url
   }
 
-  const stripeTrennen = async () => {
-    if (!confirm('Stripe-Verbindung trennen? Bestehende Zahlungslinks funktionieren dann nicht mehr.')) return
+  const trennen = async () => {
+    if (!confirm('Stripe-Verbindung trennen? Bestehende Zahlungslinks auf Rechnungen funktionieren dann nicht mehr.')) return
     const { data: { session } } = await supabase.auth.getSession()
-    await fetch('/api/connect/stripe?action=disconnect', { headers: { 'Authorization': `Bearer ${session?.access_token}` } })
-    setStripe({ verbunden: false, aktiv: false })
+    await fetch('/api/connect/stripe?action=disconnect', {
+      headers: { 'Authorization': `Bearer ${session?.access_token}` }
+    })
+    setStatus({ verbunden: false, aktiv: false })
     setBanner({ msg: 'Stripe getrennt.', ok: false })
+    setTimeout(() => setBanner(null), 3000)
   }
 
   return (
@@ -82,7 +75,10 @@ function ZahlungenPageInner() {
             <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         </Link>
-        <h1 className="text-lg font-medium">Zahlungsanbieter</h1>
+        <div>
+          <h1 className="text-lg font-medium">Zahlungen</h1>
+          <p className="text-xs text-[#555]">Lass Kunden direkt auf Rechnungen bezahlen</p>
+        </div>
       </div>
 
       {banner && (
@@ -91,21 +87,34 @@ function ZahlungenPageInner() {
         </div>
       )}
 
-      <div className="max-w-3xl mx-auto px-6 py-8 space-y-5">
+      <div className="max-w-2xl mx-auto px-6 py-8 space-y-5">
 
-        {/* Info */}
+        {/* Erklärung */}
         <div className="bg-[#d4e840]/5 border border-[#d4e840]/20 rounded-2xl p-5">
-          <p className="text-sm text-[#d4e840] font-medium mb-1">Wie funktioniert das?</p>
-          <p className="text-sm text-[#888] leading-relaxed">
-            Verbinde deinen eigenen Stripe-Account. Auf deinen Rechnungen erscheint automatisch ein
-            "Jetzt bezahlen" Button. Dein Kunde zahlt online — das Geld geht direkt auf dein Konto.
-            Werkwort nimmt keine Gebühr. Du zahlst nur die normalen Gebühren von Stripe.
-          </p>
+          <p className="text-sm font-medium text-[#d4e840] mb-2">Wie funktioniert das?</p>
+          <div className="space-y-2 text-sm text-[#888] leading-relaxed">
+            <p>Verbinde deinen Stripe-Account einmalig. Ab dann passiert folgendes automatisch:</p>
+            <div className="space-y-1.5 mt-2">
+              {[
+                'Rechnung per E-Mail senden → Zahlungslink + QR-Code erscheinen automatisch',
+                'Kunde öffnet E-Mail, klickt auf Link oder scannt QR-Code',
+                'Zahlt per Kreditkarte, SEPA oder Apple/Google Pay',
+                'Geld landet direkt auf deinem Konto',
+                'Rechnung wird automatisch auf "Bezahlt" gesetzt',
+                'Du bekommst eine Benachrichtigung in Werkwort',
+              ].map((s, i) => (
+                <div key={i} className="flex items-start gap-2.5">
+                  <span className="text-[#d4e840] font-medium flex-shrink-0 text-xs mt-0.5">{i+1}.</span>
+                  <span className="text-xs">{s}</span>
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
-        {/* Stripe Connect */}
+        {/* Stripe Card */}
         <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-          <div className="flex items-center justify-between mb-5">
+          <div className="flex items-center justify-between mb-6">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 bg-[#635bff]/10 rounded-xl flex items-center justify-center flex-shrink-0">
                 <svg className="w-6 h-6" viewBox="0 0 24 24" fill="#635bff">
@@ -114,66 +123,102 @@ function ZahlungenPageInner() {
               </div>
               <div>
                 <p className="font-medium">Stripe</p>
-                <p className="text-xs text-[#555]">Kreditkarte, SEPA, Apple Pay, Google Pay</p>
+                <p className="text-xs text-[#555]">Kreditkarte · SEPA · Apple Pay · Google Pay</p>
               </div>
             </div>
-            {stripeStatus?.verbunden && (
-              <span className={`text-xs px-2.5 py-1 rounded-full ${stripeStatus.aktiv ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
-                {stripeStatus.aktiv ? 'Aktiv' : 'Onboarding ausstehend'}
+            {status?.verbunden && (
+              <span className={`text-xs px-2.5 py-1 rounded-full ${status.aktiv ? 'bg-green-500/15 text-green-400' : 'bg-yellow-500/15 text-yellow-400'}`}>
+                {status.aktiv ? '● Aktiv' : '● Onboarding ausstehend'}
               </span>
             )}
           </div>
 
           {loading ? (
-            <div className="h-10 bg-[#111] rounded-xl animate-pulse"/>
-          ) : stripeStatus?.verbunden ? (
+            <div className="h-12 bg-[#111] rounded-xl animate-pulse"/>
+          ) : status?.verbunden ? (
             <div className="space-y-4">
-              <div className="bg-[#111] rounded-xl p-4 space-y-2 text-sm">
-                {stripeStatus.email && <div className="flex justify-between"><span className="text-[#555]">Account</span><span>{stripeStatus.email}</span></div>}
-                <div className="flex justify-between"><span className="text-[#555]">Zahlungen möglich</span><span className={stripeStatus.charges_enabled ? 'text-green-400' : 'text-yellow-400'}>{stripeStatus.charges_enabled ? 'Ja' : 'Nein — Onboarding abschließen'}</span></div>
-                {stripeStatus.verbunden_am && <div className="flex justify-between"><span className="text-[#555]">Verbunden seit</span><span className="text-[#888]">{new Date(stripeStatus.verbunden_am).toLocaleDateString('de-DE')}</span></div>}
+              <div className="bg-[#111] rounded-xl p-4 space-y-2.5 text-sm">
+                {status.email && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#555]">Stripe-Account</span>
+                    <span className="text-[#888]">{status.email}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center">
+                  <span className="text-[#555]">Zahlungen möglich</span>
+                  <span className={status.charges_enabled ? 'text-green-400' : 'text-yellow-400'}>
+                    {status.charges_enabled ? '✓ Ja' : '✗ Onboarding abschließen'}
+                  </span>
+                </div>
+                {status.verbunden_am && (
+                  <div className="flex justify-between items-center">
+                    <span className="text-[#555]">Verbunden seit</span>
+                    <span className="text-[#555]">{new Date(status.verbunden_am).toLocaleDateString('de-DE')}</span>
+                  </div>
+                )}
               </div>
-              {!stripeStatus.aktiv && (
+
+              {!status.aktiv && (
                 <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-sm text-yellow-400">
-                  Dein Stripe-Onboarding ist noch nicht abgeschlossen. Klicke "Onboarding fortsetzen" um deine Daten einzutragen.
+                  Das Onboarding ist noch nicht abgeschlossen — trage deine Bankdaten bei Stripe ein damit Zahlungen möglich sind.
                 </div>
               )}
+
               <div className="flex gap-3">
-                {!stripeStatus.aktiv && (
-                  <button type="button" onClick={stripeVerbinden} disabled={stripeLoad}
-                    className="flex-1 py-2.5 bg-[#635bff] text-white text-sm font-medium rounded-xl hover:opacity-90 disabled:opacity-40 transition-all">
-                    Onboarding fortsetzen
+                {!status.aktiv && (
+                  <button type="button" onClick={verbinden} disabled={stripeLoad}
+                    className="flex-1 py-3 bg-[#635bff] text-white text-sm font-medium rounded-xl hover:opacity-90 disabled:opacity-40 transition-all">
+                    Onboarding abschließen
                   </button>
                 )}
-                <button type="button" onClick={stripeTrennen}
-                  className="px-4 py-2.5 border border-red-500/20 text-red-500/60 text-sm rounded-xl hover:text-red-400 hover:border-red-500/40 transition-all">
+                <button type="button" onClick={trennen}
+                  className="px-5 py-3 border border-red-500/20 text-red-500/60 text-sm rounded-xl hover:text-red-400 hover:border-red-500/40 transition-all">
                   Trennen
                 </button>
               </div>
+
+              {status.aktiv && (
+                <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4 text-sm text-green-400">
+                  ✓ Alles eingerichtet — neue Rechnungen enthalten automatisch einen Zahlungslink und QR-Code.
+                </div>
+              )}
             </div>
           ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 text-center text-xs text-[#555]">
-                {[['1,5 %', '+ 0,25 €', 'EU-Karten'], ['0,35 %', '+ 0,35 €', 'SEPA'], ['Kostenlos', 'für dich', 'Werkwort']].map(([a,b,c]) => (
-                  <div key={c} className="bg-[#111] rounded-xl p-3">
-                    <p className="font-semibold text-[#f0ede8] text-sm">{a}</p>
-                    <p>{b}</p>
-                    <p className="text-[#444]">{c}</p>
+            <div className="space-y-5">
+              {/* Gebühren */}
+              <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                {[
+                  ['1,5 %', '+ 0,25 €', 'EU-Karten'],
+                  ['0,35 %', '+ 0,35 €', 'SEPA-Lastschrift'],
+                  ['0 %', 'für dich', 'Werkwort-Gebühr'],
+                ].map(([a, b, c]) => (
+                  <div key={c} className="bg-[#111] rounded-xl p-3 border border-[#2a2a2a]">
+                    <p className="font-semibold text-[#f0ede8] text-sm mb-0.5">{a}</p>
+                    <p className="text-[#555]">{b}</p>
+                    <p className="text-[#333] mt-1">{c}</p>
                   </div>
                 ))}
               </div>
-              <button type="button" onClick={stripeVerbinden} disabled={stripeLoad}
-                className="w-full py-3 bg-[#635bff] text-white text-sm font-medium rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
+
+              <button type="button" onClick={verbinden} disabled={stripeLoad}
+                className="w-full py-3.5 bg-[#635bff] text-white text-sm font-medium rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
                 {stripeLoad
-                  ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Wird weitergeleitet...</>
-                  : 'Stripe-Account verbinden'}
+                  ? <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Weiterleitung zu Stripe...</>
+                  : <>
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" strokeLinecap="round"/></svg>
+                      Stripe-Account verbinden
+                    </>}
               </button>
+
+              <p className="text-xs text-[#333] text-center">
+                Kein Stripe-Account? Wird beim Verbinden kostenlos angelegt.
+              </p>
             </div>
           )}
         </div>
 
         <p className="text-xs text-[#333] text-center pb-4">
-          Werkwort nimmt keine Provision · Gebühren gehen direkt an Stripe · Du behältst 100 % deines Umsatzes
+          Werkwort nimmt keine Provision · Gebühren direkt an Stripe · Du behältst 100 % deines Umsatzes
         </p>
       </div>
       <div className="h-8"/>
@@ -184,7 +229,7 @@ function ZahlungenPageInner() {
 export default function ZahlungenPage() {
   return (
     <Suspense fallback={<div className="min-h-screen bg-[#0c0c0c]"/>}>
-      <ZahlungenPageInner />
+      <ZahlungenInner/>
     </Suspense>
   )
 }

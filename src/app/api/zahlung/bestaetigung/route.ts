@@ -4,58 +4,67 @@ import { supabaseAdmin } from '@/lib/supabase-admin'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
-// Stripe: Kunde kommt nach erfolgreicher Zahlung hierher zurück
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url)
   const sessionId  = searchParams.get('session')
   const dokumentId = searchParams.get('dok')
 
   if (!sessionId || !dokumentId) {
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?fehler=ungueltig`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
   }
 
   try {
-    // Session von Stripe prüfen — wir brauchen den Connected Account
     const { data: dok } = await (supabaseAdmin as any)
-      .from('dokumente').select('user_id,zahlung_session_id').eq('id', dokumentId).single()
+      .from('dokumente')
+      .select('id,user_id,nummer,brutto,kunde_name')
+      .eq('id', dokumentId)
+      .single()
 
-    if (!dok) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?fehler=nicht_gefunden`)
+    if (!dok) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
 
     const { data: anbieter } = await (supabaseAdmin as any)
       .from('zahlungsanbieter')
       .select('stripe_account_id')
-      .eq('user_id', dok.user_id).eq('provider', 'stripe').single()
+      .eq('user_id', dok.user_id)
+      .eq('provider', 'stripe')
+      .single()
 
     if (!anbieter?.stripe_account_id) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?fehler=kein_anbieter`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
     }
 
-    // Session auf dem Connected Account verifizieren
+    // Stripe Session verifizieren
     const session = await stripe.checkout.sessions.retrieve(
       sessionId,
       { stripeAccount: anbieter.stripe_account_id }
     )
 
-    if (session.payment_status === 'paid') {
-      await rechnungAlsBezahltMarkieren(dokumentId)
-      return NextResponse.redirect(
-        `${process.env.NEXT_PUBLIC_APP_URL}/zahlung/danke?dok=${dokumentId}&nr=${session.metadata?.rechnung_nr || ''}`
-      )
+    if (session.payment_status !== 'paid') {
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
     }
 
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?fehler=zahlung_ausstehend`)
+    // Rechnung auf bezahlt setzen
+    await (supabaseAdmin as any).from('dokumente').update({
+      status:     'bezahlt',
+      updated_at: new Date().toISOString(),
+    }).eq('id', dokumentId)
+
+    // Notification für den Handwerker
+    await (supabaseAdmin as any).from('notifications').insert({
+      user_id: dok.user_id,
+      typ:     'zahlung_eingegangen',
+      titel:   'Zahlung eingegangen',
+      text:    `${dok.kunde_name} hat Rechnung ${dok.nummer} über ${Number(dok.brutto).toLocaleString('de-DE', { minimumFractionDigits: 2 })} € bezahlt.`,
+      link:    `/dokumente/${dokumentId}`,
+      gelesen: false,
+    })
+
+    return NextResponse.redirect(
+      `${process.env.NEXT_PUBLIC_APP_URL}/zahlung/danke?nr=${encodeURIComponent(dok.nummer)}`
+    )
 
   } catch (err) {
     console.error('Bestätigung Fehler:', err)
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/?fehler=server`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
   }
-}
-
-// ─── Hilfsfunktion: Rechnung als bezahlt markieren ──────────────
-export async function rechnungAlsBezahltMarkieren(dokumentId: string) {
-  await (supabaseAdmin as any).from('dokumente').update({
-    status:     'bezahlt',
-    updated_at: new Date().toISOString(),
-  }).eq('id', dokumentId)
-  console.log(`✅ Rechnung ${dokumentId} als bezahlt markiert`)
 }
