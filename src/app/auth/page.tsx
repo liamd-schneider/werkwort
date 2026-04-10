@@ -20,7 +20,7 @@ export default function AuthPage() {
 
     try {
       if (mode === 'register') {
-        const { data, error: signUpError } = await supabase.auth.signUp({
+        const { error: signUpError } = await supabase.auth.signUp({
           email,
           password,
           options: { data: { betrieb_name: betriebName } },
@@ -28,27 +28,8 @@ export default function AuthPage() {
 
         if (signUpError) throw signUpError
 
-        if (data.user) {
-          // Betrieb anlegen
-          const { error: betriebError } = await (supabase as any)
-            .from('betriebe')
-            .insert({
-              user_id:  data.user.id,
-              name:     betriebName,
-              adresse:  '',
-            })
-
-          if (betriebError) console.error('Betrieb anlegen fehlgeschlagen:', betriebError)
-
-          // Token-Konto anlegen (Fallback falls Trigger fehlt)
-          const { error: tokenError } = await (supabase as any)
-            .from('token_konten')
-            .upsert({ user_id: data.user.id, guthaben: 5 }, { onConflict: 'user_id' })
-
-          if (tokenError) console.error('Token-Konto anlegen fehlgeschlagen:', tokenError)
-
-          setSuccess('Registrierung erfolgreich! Du bekommst 5 Gratis-Token. Bitte E-Mail bestätigen.')
-        }
+        // Betrieb + Token-Konto werden automatisch per DB-Trigger angelegt
+        setSuccess('Registrierung erfolgreich! Du bekommst 5 Gratis-Token. Bitte E-Mail bestätigen.')
 
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
@@ -122,7 +103,7 @@ export default function AuthPage() {
             {error && <div className="bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">{error}</div>}
             {success && <div className="bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3 text-green-400 text-sm">{success}</div>}
 
-            <button type="submit" onClick={() => console.log('submit')} disabled={loading}
+            <button type="submit" disabled={loading}
               className="w-full bg-[#d4e840] text-black font-medium py-3 rounded-xl hover:opacity-90 disabled:opacity-40 transition-all mt-1">
               {loading ? 'Laden...' : mode === 'login' ? 'Einloggen' : 'Konto erstellen'}
             </button>

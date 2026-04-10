@@ -10,42 +10,49 @@ interface StripeStatus {
   account_id?: string; charges_enabled?: boolean
   details_submitted?: boolean; email?: string; verbunden_am?: string
 }
-interface PayPalStatus {
-  verbunden: boolean; aktiv: boolean
-  merchant_id?: string; email?: string; verbunden_am?: string
-}
 
 function ZahlungenPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
   const [stripeStatus, setStripe]   = useState<StripeStatus | null>(null)
-  const [paypalStatus, setPayPal]   = useState<PayPalStatus | null>(null)
   const [loading, setLoading]       = useState(true)
   const [stripeLoad, setStripeLoad] = useState(false)
-  const [paypalLoad, setPaypalLoad] = useState(false)
   const [banner, setBanner]         = useState<{ msg: string; ok: boolean } | null>(null)
 
   useEffect(() => {
     loadStatus()
+  }, [])
+
+  useEffect(() => {
+    if (!searchParams) return
     if (searchParams.get('stripe') === 'verbunden') {
       setBanner({ msg: '✓ Stripe erfolgreich verbunden! Du kannst jetzt Zahlungslinks auf Rechnungen erstellen.', ok: true })
       setTimeout(() => setBanner(null), 6000)
     }
-    if (searchParams.get('paypal') === 'verbunden') {
-      setBanner({ msg: '✓ PayPal erfolgreich verbunden!', ok: true })
-      setTimeout(() => setBanner(null), 6000)
-    }
-  }, [])
+  }, [searchParams])
 
   const loadStatus = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { router.push('/auth'); return }
-    const h = { 'Authorization': `Bearer ${session.access_token}` }
-    const [s, p] = await Promise.all([
-      fetch('/api/connect/stripe?action=status', { headers: h }).then(r => r.json()),
-      fetch('/api/connect/paypal?action=status',  { headers: h }).then(r => r.json()),
-    ])
-    setStripe(s); setPayPal(p); setLoading(false)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/auth'); return }
+
+      console.log('[Zahlungen] Session OK, lade Stripe-Status...')
+
+      const h = { 'Authorization': `Bearer ${session.access_token}` }
+
+      const stripeRes = await fetch('/api/connect/stripe?action=status', { headers: h })
+      console.log('[Zahlungen] Stripe response status:', stripeRes.status, stripeRes.headers.get('content-type'))
+
+      const stripeText = await stripeRes.text()
+      console.log('[Zahlungen] Stripe raw response:', stripeText.slice(0, 200))
+
+      const s = JSON.parse(stripeText)
+      setStripe(s)
+    } catch (err) {
+      console.error('[Zahlungen] Fehler beim Laden:', err)
+    } finally {
+      setLoading(false)
+    }
   }
 
   const stripeVerbinden = async () => {
@@ -65,25 +72,6 @@ function ZahlungenPageInner() {
     await fetch('/api/connect/stripe?action=disconnect', { headers: { 'Authorization': `Bearer ${session?.access_token}` } })
     setStripe({ verbunden: false, aktiv: false })
     setBanner({ msg: 'Stripe getrennt.', ok: false })
-  }
-
-  const paypalVerbinden = async () => {
-    setPaypalLoad(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch('/api/connect/paypal?action=connect', {
-      headers: { 'Authorization': `Bearer ${session?.access_token}` }
-    })
-    const { url, error } = await res.json()
-    if (error) { alert(error); setPaypalLoad(false); return }
-    window.location.href = url
-  }
-
-  const paypalTrennen = async () => {
-    if (!confirm('PayPal-Verbindung trennen?')) return
-    const { data: { session } } = await supabase.auth.getSession()
-    await fetch('/api/connect/paypal?action=disconnect', { headers: { 'Authorization': `Bearer ${session?.access_token}` } })
-    setPayPal({ verbunden: false, aktiv: false })
-    setBanner({ msg: 'PayPal getrennt.', ok: false })
   }
 
   return (
@@ -109,9 +97,9 @@ function ZahlungenPageInner() {
         <div className="bg-[#d4e840]/5 border border-[#d4e840]/20 rounded-2xl p-5">
           <p className="text-sm text-[#d4e840] font-medium mb-1">Wie funktioniert das?</p>
           <p className="text-sm text-[#888] leading-relaxed">
-            Verbinde deinen eigenen Stripe- oder PayPal-Account. Auf deinen Rechnungen erscheint automatisch ein
+            Verbinde deinen eigenen Stripe-Account. Auf deinen Rechnungen erscheint automatisch ein
             "Jetzt bezahlen" Button. Dein Kunde zahlt online — das Geld geht direkt auf dein Konto.
-            Werkwort nimmt keine Gebühr. Du zahlst nur die normalen Gebühren deines Anbieters.
+            Werkwort nimmt keine Gebühr. Du zahlst nur die normalen Gebühren von Stripe.
           </p>
         </div>
 
@@ -184,10 +172,8 @@ function ZahlungenPageInner() {
           )}
         </div>
 
-        {/* PayPal Connect */}
-
         <p className="text-xs text-[#333] text-center pb-4">
-          Werkwort nimmt keine Provision · Gebühren gehen direkt an Stripe Du behältst 100 % deines Umsatzes
+          Werkwort nimmt keine Provision · Gebühren gehen direkt an Stripe · Du behältst 100 % deines Umsatzes
         </p>
       </div>
       <div className="h-8"/>

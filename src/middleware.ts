@@ -9,7 +9,7 @@ export async function middleware(req: NextRequest) {
   const isAuthPage  = req.nextUrl.pathname.startsWith('/auth')
   const isProtected = [
     '/dashboard', '/neu', '/dokumente', '/bautagebuch',
-    '/profil', '/projekte', '/export', '/kalender',
+    '/profil', '/projekte', '/export', '/kalender', '/zahlungen', '/lexware',
   ].some(path => req.nextUrl.pathname.startsWith(path))
 
   if (!supabaseCookie && isProtected) {
@@ -26,6 +26,6 @@ export const config = {
   matcher: [
     '/dashboard/:path*', '/neu/:path*', '/dokumente/:path*',
     '/bautagebuch/:path*', '/profil/:path*', '/projekte/:path*',
-    '/export/:path*', '/kalender/:path*', '/auth/:path*',
+    '/export/:path*', '/kalender/:path*', '/zahlungen/:path*', '/lexware/:path*', '/auth/:path*',
   ],
 }
