@@ -1,0 +1,23 @@
+{
+  "name": "eWerkwort",
+  "short_name": "eWerkwort",
+  "description": "Professionelle Rechnungsstellung und Dokumentation",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#111111",
+  "theme_color": "#D4E500",
+  "icons": [
+    {
+      "src": "/gemini-svg.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    },
+    {
+      "src": "/gemini-svg.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -18,6 +18,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="de" className="bg-[#0c0c0c]">
       <link rel="icon" type="image/svg+xml" href="/gemini-svg.svg"></link>
+      <link rel="manifest" href="/manifest.json"></link>
       <body className={`${inter.className} bg-[#0c0c0c] text-[#f0ede8]`}>
         <BottomNav />
         <main className="md:ml-[200px] min-h-screen bg-[#0c0c0c]">
