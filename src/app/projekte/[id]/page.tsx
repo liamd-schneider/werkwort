@@ -15,7 +15,9 @@ interface Dok {
 }
 interface Eintrag {
   id: string; baustelle: string; datum: string; ausgefuehrte_arbeiten: string
-  arbeiter: number; wetter: string | null
+  arbeiter: number; wetter: string | null; lieferungen: string | null
+  besuche: string | null; besonderheiten: string | null; fotos: string[] | null
+  finalisiert: boolean; version: number; finalisiert_am: string | null
 }
 
 const TYP_COLORS: Record<string, string> = {
@@ -34,6 +36,8 @@ export default function ProjektDetailPage() {
   const [loading, setLoading] = useState(true)
   const [dokDialog, setDokDialog] = useState(false)
   const [alleDoks, setAlleDoks] = useState<Dok[]>([])
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set())
+  const [zeigeAlle, setZeigeAlle] = useState(false)
 
   useEffect(() => { loadProjekt() }, [])
 
@@ -73,10 +77,20 @@ export default function ProjektDetailPage() {
     if (projekt) setProjekt({ ...projekt, status })
   }
 
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
   if (loading) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center"><div className="w-6 h-6 border-2 border-[#d4e840] border-t-transparent rounded-full animate-spin"/></div>
   if (!projekt) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center text-[#555]">Projekt nicht gefunden</div>
 
   const gesamtbetrag = dokumente.reduce((s, d) => s + (d.brutto || 0), 0)
+  const sichtbareEintraege = zeigeAlle ? eintraege : eintraege.slice(0, 5)
 
   return (
     <div className="min-h-screen bg-[#0c0c0c] text-[#f0ede8]">
@@ -112,9 +126,10 @@ export default function ProjektDetailPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-          {/* Dokumente */}
+          {/* Dokumente + Bautagebuch */}
           <div className="lg:col-span-2 space-y-6">
 
+            {/* Dokumente */}
             <div>
               <div className="flex items-center justify-between mb-3">
                 <p className="text-xs text-[#444] uppercase tracking-widest">Dokumente</p>
@@ -160,7 +175,10 @@ export default function ProjektDetailPage() {
             {/* Bautagebuch */}
             <div>
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-[#444] uppercase tracking-widest">Bautagebuch</p>
+                <p className="text-xs text-[#444] uppercase tracking-widest">
+                  Bautagebuch
+                  {eintraege.length > 0 && <span className="ml-2 text-[#333]">({eintraege.length})</span>}
+                </p>
                 <Link href="/bautagebuch"
                   className="text-xs bg-[#d4e840] text-black px-3 py-1.5 rounded-lg hover:opacity-90 transition-all flex items-center gap-1">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
@@ -173,25 +191,156 @@ export default function ProjektDetailPage() {
                   <p className="text-[#444] text-sm">Noch keine Bautagebuch-Einträge</p>
                 </div>
               ) : (
-                <div className="space-y-3">
-                  {eintraege.slice(0, 5).map(e => (
-                    <div key={e.id} className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
-                      <div className="flex items-center justify-between mb-2">
-                        <p className="text-sm font-medium">
-                          {new Date(e.datum).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
-                        </p>
-                        <div className="flex items-center gap-3 text-xs text-[#555]">
-                          {e.wetter && <span>{e.wetter}</span>}
-                          <span>{e.arbeiter} Arbeiter</span>
-                        </div>
+                <div className="space-y-2">
+                  {sichtbareEintraege.map(e => {
+                    const isExpanded = expandedIds.has(e.id)
+                    const hatDetails = e.lieferungen || e.besuche || e.besonderheiten || (e.fotos && e.fotos.length > 0)
+
+                    return (
+                      <div key={e.id}
+                        className={`bg-[#181818] border rounded-xl overflow-hidden transition-all ${e.finalisiert ? 'border-green-500/20' : 'border-[#2a2a2a]'}`}>
+
+                        {/* Klickbarer Header */}
+                        <button
+                          type="button"
+                          onClick={() => toggleExpand(e.id)}
+                          className="w-full text-left px-4 py-3.5 flex items-start gap-3 hover:bg-[#1f1f1f] transition-colors">
+
+                          {/* Chevron */}
+                          <svg
+                            className={`w-4 h-4 text-[#444] flex-shrink-0 mt-0.5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+                            fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path d="M9 18l6-6-6-6" strokeLinecap="round" strokeLinejoin="round"/>
+                          </svg>
+
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-3 mb-1">
+                              <p className="text-sm font-medium">
+                                {new Date(e.datum).toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
+                              </p>
+                              <div className="flex items-center gap-3 flex-shrink-0">
+                                {e.finalisiert && (
+                                  <span className="text-xs text-green-500/60 flex items-center gap-1">
+                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                      <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round"/>
+                                    </svg>
+                                    V{e.version}
+                                  </span>
+                                )}
+                                {e.wetter && <span className="text-xs text-[#555]">{e.wetter}</span>}
+                                <span className="text-xs text-[#555] flex items-center gap-1">
+                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                    <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2M9 11a4 4 0 100-8 4 4 0 000 8z"/>
+                                  </svg>
+                                  {e.arbeiter}
+                                </span>
+                              </div>
+                            </div>
+                            <p className={`text-sm text-[#888] ${isExpanded ? '' : 'line-clamp-2'}`}>
+                              {e.ausgefuehrte_arbeiten}
+                            </p>
+                          </div>
+                        </button>
+
+                        {/* Ausgeklappter Inhalt */}
+                        {isExpanded && (
+                          <div className="px-4 pb-4 pt-1 border-t border-[#1f1f1f] space-y-3 ml-7">
+
+                            {/* Baustelle wenn abweichend */}
+                            {e.baustelle && (
+                              <p className="text-xs text-[#555]">
+                                <span className="text-[#444]">Baustelle: </span>{e.baustelle}
+                              </p>
+                            )}
+
+                            {/* Detail-Felder */}
+                            {e.lieferungen && (
+                              <div className="flex gap-2">
+                                <svg className="w-3.5 h-3.5 text-[#444] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeLinecap="round" strokeLinejoin="round"/>
+                                </svg>
+                                <div>
+                                  <p className="text-xs text-[#444] mb-0.5">Lieferungen</p>
+                                  <p className="text-sm text-[#888]">{e.lieferungen}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {e.besuche && (
+                              <div className="flex gap-2">
+                                <svg className="w-3.5 h-3.5 text-[#444] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round"/>
+                                </svg>
+                                <div>
+                                  <p className="text-xs text-[#444] mb-0.5">Besuche</p>
+                                  <p className="text-sm text-[#888]">{e.besuche}</p>
+                                </div>
+                              </div>
+                            )}
+
+                            {e.besonderheiten && (
+                              <div className="bg-[#d4e840]/5 border border-[#d4e840]/15 rounded-xl p-3">
+                                <p className="text-xs text-[#d4e840] mb-1 flex items-center gap-1.5">
+                                  <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
+                                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round"/>
+                                  </svg>
+                                  Besonderheit
+                                </p>
+                                <p className="text-sm text-[#ccc]">{e.besonderheiten}</p>
+                              </div>
+                            )}
+
+                            {/* Fotos */}
+                            {e.fotos && e.fotos.length > 0 && (
+                              <div>
+                                <p className="text-xs text-[#444] mb-2">Fotos ({e.fotos.length})</p>
+                                <div className="grid grid-cols-4 gap-1.5">
+                                  {e.fotos.map((url, i) => (
+                                    <a key={i} href={url} target="_blank" rel="noopener noreferrer">
+                                      <img src={url} alt="" className="w-full h-20 object-cover rounded-lg hover:opacity-80 transition-opacity"/>
+                                    </a>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* GoBD Siegel-Info */}
+                            {e.finalisiert && e.finalisiert_am && (
+                              <div className="flex items-center gap-2 pt-1">
+                                <svg className="w-3 h-3 text-green-500/40 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                  <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round"/>
+                                </svg>
+                                <p className="text-xs text-[#333]">
+                                  GoBD-versiegelt {new Date(e.finalisiert_am).toLocaleString('de-DE', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                                </p>
+                              </div>
+                            )}
+
+                            {/* Link zum Bautagebuch */}
+                            <Link href="/bautagebuch"
+                              className="inline-flex items-center gap-1 text-xs text-[#555] hover:text-[#d4e840] transition-colors pt-1">
+                              Im Bautagebuch öffnen
+                              <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" strokeLinecap="round"/>
+                              </svg>
+                            </Link>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-sm text-[#888] line-clamp-2">{e.ausgefuehrte_arbeiten}</p>
-                    </div>
-                  ))}
+                    )
+                  })}
+
+                  {/* Mehr/Weniger anzeigen */}
                   {eintraege.length > 5 && (
-                    <Link href="/bautagebuch" className="block text-center text-xs text-[#555] hover:text-[#888] py-2">
-                      Alle {eintraege.length} Einträge anzeigen →
-                    </Link>
+                    <button
+                      type="button"
+                      onClick={() => setZeigeAlle(!zeigeAlle)}
+                      className="w-full text-center text-xs text-[#555] hover:text-[#888] py-2 transition-colors flex items-center justify-center gap-1.5">
+                      {zeigeAlle
+                        ? <>Weniger anzeigen <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M5 15l7-7 7 7" strokeLinecap="round"/></svg></>
+                        : <>Alle {eintraege.length} Einträge anzeigen <svg className="w-3 h-3" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M19 9l-7 7-7-7" strokeLinecap="round"/></svg></>
+                      }
+                    </button>
                   )}
                 </div>
               )}

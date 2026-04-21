@@ -6,12 +6,14 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Dokument, DokumentStatus, AngebotPosition } from '@/types'
 
+
 const STATUS_LABELS: Record<DokumentStatus, string> = {
-  entwurf: 'Entwurf', offen: 'Offen', angenommen: 'Angenommen',
+  entwurf: 'Entwurf', offen: 'Offen', gesendet: 'Gesendet', angenommen: 'Angenommen',
   bezahlt: 'Bezahlt', abgelehnt: 'Abgelehnt', ueberfaellig: 'Überfällig',
 }
 const STATUS_COLORS: Record<DokumentStatus, string> = {
   entwurf: 'bg-[#2a2a2a] text-[#888]', offen: 'bg-[#d4e840]/15 text-[#d4e840]',
+  gesendet: 'bg-blue-500/15 text-blue-400',
   angenommen: 'bg-green-500/15 text-green-400', bezahlt: 'bg-green-500/15 text-green-400',
   abgelehnt: 'bg-red-500/15 text-red-400', ueberfaellig: 'bg-red-500/15 text-red-400',
 }
@@ -50,6 +52,10 @@ export default function DokumentDetailPage() {
   const [deleting, setDeleting] = useState(false)
   const [kundeEmail, setKundeEmail] = useState('')
   const [emailDialog, setEmailDialog] = useState(false)
+  const [kiDialog, setKiDialog]         = useState(false)
+  const [zugferdLoading, setZugferdLoad] = useState(false)
+  const [finalisiert, setFinalisiert]    = useState(false)
+  const [kiAktion, setKiAktion]         = useState<'senden'|'zugferd'|null>(null)
 
   useEffect(() => { loadDokument() }, [])
 
@@ -59,6 +65,7 @@ export default function DokumentDetailPage() {
     const { data } = await (supabase as any).from('dokumente').select('*')
       .eq('id', params.id).eq('user_id', user.id).single()
     setDok(data)
+    if (data?.finalisiert) setFinalisiert(true)
     setLoading(false)
   }
 
@@ -107,11 +114,29 @@ export default function DokumentDetailPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
-  const statusAendern = async (s: DokumentStatus) => {
-    if (!dok) return
-    await (supabase as any).from('dokumente').update({ status: s }).eq('id', dok.id)
-    setDok({ ...dok, status: s })
+ const statusAendern = async (s: DokumentStatus) => {
+  if (!dok) {
+    console.error('[statusAendern] dok ist null!')
+    return
   }
+  console.log('[statusAendern] Starte Update:', { id: dok.id, neuerStatus: s })
+  
+  const { data, error } = await (supabase as any)
+    .from('dokumente')
+    .update({ status: s })
+    .eq('id', dok.id)
+    .select()  // ← wichtig: gibt zurück was wirklich gespeichert wurde
+  
+  console.log('[statusAendern] Ergebnis:', { data, error })
+  
+  if (error) {
+    console.error('[statusAendern] DB-FEHLER:', error)
+    return
+  }
+  
+  setDok(prev => prev ? { ...prev, status: s } : prev)
+  console.log('[statusAendern] State gesetzt auf:', s)
+}
 
   const loeschen = async () => {
     if (!dok) return
@@ -148,24 +173,99 @@ export default function DokumentDetailPage() {
   }
 
   const dokSenden = async () => {
-    if (!dok || !kundeEmail) return
-    setSending(true)
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch('/api/sende-angebot', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body: JSON.stringify({ dokumentId: dok.id, kundeEmail }),
-    })
-    const result = await res.json()
-    setSending(false)
-    if (result.success) {
-      setEmailDialog(false)
-      if (dok.status === 'entwurf') statusAendern('offen')
-      alert('Erfolgreich versendet!')
-    } else {
-      alert(result.error || 'Fehler beim Senden')
-    }
+  if (!dok || !kundeEmail) return
+  setSending(true)
+  const { data: { session } } = await supabase.auth.getSession()
+
+  // E-Rechnung auto-generieren falls noch nicht vorhanden
+  if (dok.typ === 'rechnung' && !finalisiert) {
+    try {
+      const res = await fetch('/api/zugferd', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ dokumentId: dok.id }),
+      })
+      const result = await res.json()
+      if (result.success) {
+        // PDF runterladen
+        const bytes = Uint8Array.from(atob(result.pdf_b64), c => c.charCodeAt(0))
+        const blob  = new Blob([bytes], { type: 'application/pdf' })
+        const url   = URL.createObjectURL(blob)
+        const a     = document.createElement('a')
+        a.href     = url
+        a.download = `${dok.nummer}_ZUGFeRD_EN16931.pdf`
+        a.click()
+        URL.revokeObjectURL(url)
+        setFinalisiert(true)
+        setDok(prev => prev ? { ...prev, finalisiert: true } as any : prev)
+      }
+    } catch {}
   }
+
+  // Dann normal versenden
+  const res = await fetch('/api/sende-angebot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+    body: JSON.stringify({ dokumentId: dok.id, kundeEmail }),
+  })
+  const result = await res.json()
+console.log('[dokSenden] API-Ergebnis:', result)
+setSending(false)
+if (result.success) {
+  setEmailDialog(false)
+  console.log('[dokSenden] Rufe statusAendern auf...')
+  await statusAendern('gesendet')
+  console.log('[dokSenden] statusAendern fertig')
+} else {
+  alert(result.error || 'Fehler beim Senden')
+}
+}
+
+  // ZUGFeRD E-Rechnung generieren (GoBD-konform, XSD + Schematron valide)
+ // Ersetze die zugferdGenerieren-Funktion in deiner DokumentDetailPage
+// Kein pdfBase64 mehr an die API schicken — die Route holt sich das PDF selbst
+
+const zugferdGenerieren = async () => {
+  if (!dok) return
+  setZugferdLoad(true)
+  try {
+    const { data: { session } } = await supabase.auth.getSession()
+
+    // Nur noch dokumentId schicken — kein PDF-Base64 mehr
+    const res = await fetch('/api/zugferd', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session?.access_token}`,
+      },
+      body: JSON.stringify({ dokumentId: dok.id }),
+    })
+
+    const result = await res.json()
+    if (!result.success) {
+      alert(result.error || 'ZUGFeRD fehlgeschlagen')
+      return
+    }
+
+    // PDF herunterladen (result.pdf_b64 ist echtes Base64)
+    const bytes = Uint8Array.from(atob(result.pdf_b64), c => c.charCodeAt(0))
+    const blob  = new Blob([bytes], { type: 'application/pdf' })
+    const url   = URL.createObjectURL(blob)
+    const a     = document.createElement('a')
+    a.href     = url
+    a.download = `${dok.nummer}_ZUGFeRD_EN16931.pdf`
+    a.click()
+    URL.revokeObjectURL(url)
+
+    setFinalisiert(true)
+    setDok({ ...dok, finalisiert: true } as any)
+    alert('✓ E-Rechnung (ZUGFeRD EN16931) erstellt!')
+  } catch (err: any) {
+    alert('Fehler: ' + err.message)
+  } finally {
+    setZugferdLoad(false)
+  }
+}
 
   if (loading) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center"><div className="w-6 h-6 border-2 border-[#d4e840] border-t-transparent rounded-full animate-spin"/></div>
   if (!dok) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center text-[#555]">Nicht gefunden</div>
@@ -192,6 +292,7 @@ export default function DokumentDetailPage() {
         </div>
         <div className="flex items-center gap-3 flex-shrink-0">
           {edit && <span className="hidden sm:flex text-xs text-[#d4e840] bg-[#d4e840]/10 px-3 py-1 rounded-full border border-[#d4e840]/30">✏️ Bearbeitbar</span>}
+          {finalisiert && <span className="hidden sm:flex text-xs bg-green-500/15 text-green-400 px-3 py-1 rounded-full border border-green-500/30">🔒 GoBD-konform</span>}
           <span className={`text-xs px-3 py-1.5 rounded-full font-medium ${STATUS_COLORS[dok.status as DokumentStatus]}`}>{STATUS_LABELS[dok.status as DokumentStatus]}</span>
         </div>
       </div>
@@ -338,6 +439,24 @@ export default function DokumentDetailPage() {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round"/></svg>
                   PDF exportieren
                 </button>
+                {/* ZUGFeRD E-Rechnung — nur für Rechnungen */}
+                {dok.typ === 'rechnung' && (
+                  <button type="button" onClick={zugferdGenerieren} disabled={zugferdLoading}
+                    className={`w-full px-4 py-2.5 rounded-xl border text-sm transition-all text-left flex items-center gap-2 disabled:opacity-40 ${
+                      finalisiert
+                        ? 'bg-green-500/10 border-green-500/30 text-green-400 cursor-default'
+                        : 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20'
+                    }`}>
+                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round"/>
+                    </svg>
+                    {zugferdLoading
+                      ? 'Generiere E-Rechnung...'
+                      : finalisiert
+                        ? '✓ E-Rechnung (ZUGFeRD) erstellt'
+                        : 'E-Rechnung (ZUGFeRD) erstellen'}
+                  </button>
+                )}
                 {/* Löschen */}
                 <button type="button" onClick={loeschen} disabled={deleting}
                   className="w-full px-4 py-2.5 rounded-xl bg-red-500/5 border border-red-500/20 text-sm text-red-500/70 hover:text-red-400 hover:border-red-500/40 transition-all text-left flex items-center gap-2 disabled:opacity-40 mt-2">
@@ -364,13 +483,31 @@ export default function DokumentDetailPage() {
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-5">
               <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Details</p>
               <div className="space-y-3 text-sm">
-                {[['Nummer', dok.nummer], ['Typ', dok.typ.charAt(0).toUpperCase()+dok.typ.slice(1)],
-                  ['Erstellt', new Date(dok.created_at).toLocaleDateString('de-DE')],
-                  ['Token', `${dok.token_verbraucht}`]].map(([k,v]) => (
+                {[["Nummer", dok.nummer], ["Typ", dok.typ.charAt(0).toUpperCase()+dok.typ.slice(1)],
+                  ["Erstellt", new Date(dok.created_at).toLocaleDateString("de-DE")],
+                  ["Token", String(dok.token_verbraucht)]].map(([k,v]) => (
                   <div key={k} className="flex justify-between"><span className="text-[#555]">{k}</span><span>{v}</span></div>
                 ))}
+                {finalisiert && (
+                  <>
+                    <div className="flex justify-between border-t border-[#2a2a2a] pt-3">
+                      <span className="text-[#555]">E-Rechnung</span>
+                      <span className="text-green-400 text-xs">ZUGFeRD EN16931 ✓</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-[#555]">GoBD-Status</span>
+                      <span className="text-green-400 text-xs">Finalisiert ✓</span>
+                    </div>
+                  </>
+                )}
               </div>
             </div>
+            {dok.typ === "rechnung" && !finalisiert && (
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-4 text-xs text-[#444] leading-relaxed">
+                <p className="text-[#666] font-medium mb-1">Was ist eine E-Rechnung?</p>
+                Seit 2025 gesetzlich vorgeschrieben (B2B). ZUGFeRD EN16931 ist ein PDF mit eingebetteter XML — maschinenlesbar, DATEV-importierbar, GoBD-konform.
+              </div>
+            )}
           </div>
         </div>
       </div>

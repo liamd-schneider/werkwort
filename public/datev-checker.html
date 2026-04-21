@@ -1,0 +1,727 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>DATEV SKR03 Checker</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;600&family=IBM+Plex+Sans:wght@300;400;600;700&display=swap');
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0f0f0f;
+    --surface: #181818;
+    --surface2: #222;
+    --border: #2a2a2a;
+    --accent: #d4e840;
+    --accent2: #40e8a0;
+    --danger: #e84040;
+    --warn: #e8a040;
+    --text: #f0f0f0;
+    --muted: #666;
+    --mono: 'IBM Plex Mono', monospace;
+    --sans: 'IBM Plex Sans', sans-serif;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 14px;
+    min-height: 100vh;
+    line-height: 1.5;
+  }
+
+  header {
+    padding: 28px 32px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: baseline;
+    gap: 16px;
+  }
+  header h1 {
+    font-family: var(--mono);
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--accent);
+    letter-spacing: -0.5px;
+  }
+  header span {
+    font-size: 12px;
+    color: var(--muted);
+  }
+
+  .main { padding: 28px 32px; max-width: 960px; }
+
+  /* Drop Zone */
+  .drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 8px;
+    padding: 48px 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+    margin-bottom: 28px;
+  }
+  .drop-zone:hover, .drop-zone.drag { border-color: var(--accent); background: #d4e84008; }
+  .drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; }
+  .drop-zone .icon {
+    font-size: 32px;
+    margin-bottom: 12px;
+    display: block;
+    filter: grayscale(1);
+    transition: filter 0.2s;
+  }
+  .drop-zone:hover .icon { filter: none; }
+  .drop-zone p { color: var(--muted); font-size: 13px; }
+  .drop-zone strong { color: var(--text); font-size: 15px; display: block; margin-bottom: 6px; }
+
+  /* Status Bar */
+  .status-bar {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 12px 16px;
+    margin-bottom: 24px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .status-bar.show { display: flex; }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--accent2); flex-shrink: 0;
+    animation: pulse 1.5s infinite;
+  }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+
+  /* Summary Cards */
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 12px;
+    margin-bottom: 28px;
+  }
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+  }
+  .card .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    margin-bottom: 8px;
+    font-family: var(--mono);
+  }
+  .card .value {
+    font-family: var(--mono);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .card.ok .value { color: var(--accent2); }
+  .card.warn .value { color: var(--warn); }
+  .card.err .value { color: var(--danger); }
+  .card.info .value { color: var(--accent); }
+
+  /* Section */
+  .section { margin-bottom: 24px; }
+  .section-title {
+    font-family: var(--mono);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: var(--muted);
+    margin-bottom: 10px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .section-title::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+
+  /* Check List */
+  .check-list { display: flex; flex-direction: column; gap: 6px; }
+  .check-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 11px 14px;
+    font-size: 13px;
+  }
+  .check-item.ok { border-color: #40e8a020; }
+  .check-item.warn { border-color: #e8a04030; }
+  .check-item.err { border-color: #e8404030; }
+  .badge {
+    font-family: var(--mono);
+    font-size: 10px;
+    font-weight: 600;
+    padding: 2px 7px;
+    border-radius: 3px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    margin-top: 1px;
+  }
+  .badge.ok { background: #40e8a020; color: var(--accent2); }
+  .badge.warn { background: #e8a04020; color: var(--warn); }
+  .badge.err { background: #e8404020; color: var(--danger); }
+  .badge.info { background: #d4e84020; color: var(--accent); }
+
+  .check-text { flex: 1; }
+  .check-text strong { display: block; color: var(--text); margin-bottom: 2px; }
+  .check-text span { color: var(--muted); font-size: 12px; }
+
+  /* Buchungen Tabelle */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    overflow: hidden;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+  thead th {
+    background: #1e1e1e;
+    padding: 9px 12px;
+    text-align: left;
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody tr { border-bottom: 1px solid var(--border); transition: background 0.1s; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: #222; }
+  tbody td { padding: 9px 12px; color: var(--text); }
+  tbody td.num { text-align: right; }
+  tbody td.ok-cell { color: var(--accent2); }
+  tbody td.err-cell { color: var(--danger); }
+  tbody td.warn-cell { color: var(--warn); }
+
+  .pill {
+    display: inline-block;
+    padding: 1px 7px;
+    border-radius: 3px;
+    font-size: 10px;
+    font-weight: 600;
+  }
+  .pill.S { background: #40e8a018; color: var(--accent2); }
+  .pill.H { background: #e8404018; color: var(--danger); }
+
+  /* Kontenübersicht */
+  .konto-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+  .konto-item {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 10px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .konto-item .kname { color: var(--muted); font-size: 11px; margin-top: 2px; font-family: var(--sans); }
+  .konto-item .kbetrag { color: var(--accent); font-size: 13px; font-weight: 600; }
+
+  /* Hidden initially */
+  #results { display: none; }
+  #results.show { display: block; }
+
+  /* Empty state */
+  .empty {
+    text-align: center;
+    padding: 60px 20px;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .header-info {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px 16px;
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+    margin-bottom: 24px;
+    display: flex;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .header-info span b { color: var(--text); font-weight: 600; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>DATEV SKR03 Checker</h1>
+  <span>Buchungsstapel · Formatprüfung & Kontenvalidierung</span>
+</header>
+
+<div class="main">
+
+  <div class="drop-zone" id="dropZone">
+    <input type="file" id="fileInput" accept=".csv">
+    <span class="icon">📂</span>
+    <strong>DATEV-Exportdatei hier ablegen</strong>
+    <p>oder klicken zum Auswählen · .csv (EXTF-Format)</p>
+  </div>
+
+  <div class="status-bar" id="statusBar">
+    <div class="status-dot"></div>
+    <span id="statusText">Datei wird analysiert…</span>
+  </div>
+
+  <div id="results">
+
+    <div class="header-info" id="headerInfo"></div>
+
+    <div class="summary" id="summary"></div>
+
+    <div class="section">
+      <div class="section-title">Formatprüfung</div>
+      <div class="check-list" id="checkList"></div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Buchungszeilen</div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Belegfeld</th>
+              <th>Text</th>
+              <th>Konto</th>
+              <th>Gegenkonto</th>
+              <th>S/H</th>
+              <th>Betrag</th>
+              <th>Datum</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="buchungenBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">Kontenübersicht (Summen)</div>
+      <div class="konto-grid" id="kontoGrid"></div>
+    </div>
+
+  </div>
+
+</div>
+
+<script>
+// ── SKR03 Kontenliste (relevante Konten) ──────────────────────────────────────
+const SKR03 = {
+  // Anlagevermögen
+  '0200': 'Grundstücke', '0400': 'Maschinen', '0650': 'Betriebs- u. Geschäftsausstattung',
+  '0670': 'Geringwertige Wirtschaftsgüter',
+  // Umlaufvermögen
+  '1000': 'Kasse', '1200': 'Bank', '1210': 'Postbank',
+  '1400': 'Forderungen aus L+L', '1410': 'Forderungen Skonti',
+  '1600': 'Verbindlichkeiten aus L+L',
+  // Eigenkapital
+  '2000': 'Eigenkapital', '2010': 'Privatentnahmen', '2020': 'Privateinlagen',
+  // Erträge
+  '8200': 'Erlöse Lieferungen 7% USt', '8400': 'Erlöse Lieferungen 19% USt',
+  '8100': 'Erlöse Lieferungen steuerfrei',
+  // Aufwendungen
+  '4000': 'Löhne und Gehälter', '4100': 'Gesetzliche Sozialaufwendungen',
+  '4200': 'Sonstige Personalkosten', '4300': 'Raumkosten', '4360': 'Reinigung',
+  '4400': 'Kfz-Kosten', '4500': 'Werbe- u. Reisekosten',
+  '4600': 'Kosten der Warenabgabe', '4650': 'Verpackungsmaterial',
+  '4800': 'Porto', '4830': 'Telefon', '4900': 'Sonstige Betriebsausgaben',
+  '4930': 'Buchführungskosten', '4970': 'Beratungskosten',
+  '7000': 'Materialaufwand', '7100': 'Hilfs- und Betriebsstoffe',
+  // Umsatzsteuer
+  '1770': 'Umsatzsteuer 19%', '1771': 'Umsatzsteuer 7%',
+  '1400': 'Forderungen aus L+L',
+};
+
+const VALID_BU = ['', '8', '9', '40', '49'];
+
+function getKontoName(nr) {
+  if (SKR03[nr]) return SKR03[nr];
+  // Bereichslogik
+  const n = parseInt(nr);
+  if (n >= 8000 && n <= 8999) return 'Erlöskonto';
+  if (n >= 4000 && n <= 4999) return 'Aufwandskonto';
+  if (n >= 7000 && n <= 7999) return 'Materialkonto';
+  if (n >= 1000 && n <= 1099) return 'Kassenkonto';
+  if (n >= 1200 && n <= 1299) return 'Bankkonto';
+  if (n >= 1400 && n <= 1499) return 'Forderungskonto';
+  if (n >= 1600 && n <= 1699) return 'Verbindlichkeitskonto';
+  if (n >= 0 && n <= 999) return 'Anlagevermögen';
+  return '(unbekannt)';
+}
+
+function isValidKonto(nr) {
+  if (!nr) return false;
+  if (SKR03[nr]) return true;
+  const n = parseInt(nr);
+  return (
+    (n >= 0 && n <= 9999)  // grundsätzlich gültige SKR03-Range
+  );
+}
+
+function parseBetrag(str) {
+  return parseFloat(str.replace(',', '.'));
+}
+
+function parseDatum(str) {
+  if (!str) return null;
+  // DDMM oder DDMMYYYY oder DDMMJJ
+  str = str.trim().replace(/"/g, '');
+  if (str.length === 4) return str.slice(0,2) + '.' + str.slice(2) + '.';
+  if (str.length === 8) return str.slice(0,2) + '.' + str.slice(2,4) + '.' + str.slice(4);
+  return str;
+}
+
+function analyzeFile(text) {
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean);
+
+  // Header Zeile 1
+  const header1 = parseCSVLine(lines[0]);
+  const formatKennung = header1[0]?.replace(/"/g,'');
+  const version = header1[1];
+  const dateiTyp = header1[3]?.replace(/"/g,'');
+  const beraternr = header1[10];
+  const mandantnr = header1[11];
+  const wjBeginn = header1[12];
+  const sachkontenlänge = header1[13];
+  const buchungsVon = header1[14];
+  const buchungsBis = header1[15];
+  const bezeichnung = header1[16]?.replace(/"/g,'');
+  const waehrung = header1[21]?.replace(/"/g,'');
+
+  // Header Zeile 2 (Spaltenköpfe)
+  // Buchungszeilen ab Zeile 3
+  const buchungen = [];
+  for (let i = 2; i < lines.length; i++) {
+    const cols = parseCSVLine(lines[i]);
+    if (cols.length < 8) continue;
+    buchungen.push({
+      zeile: i + 1,
+      betrag: cols[0],
+      sh: cols[1]?.replace(/"/g,''),
+      wkz: cols[2]?.replace(/"/g,''),
+      konto: cols[6],
+      gegenkonto: cols[7],
+      buSchluessel: cols[8],
+      belegdatum: cols[9],
+      belegfeld1: cols[10]?.replace(/"/g,''),
+      buchungstext: cols[13]?.replace(/"/g,''),
+    });
+  }
+
+  // ── Checks ────────────────────────────────────────────────────────────────
+  const checks = [];
+  let errors = 0, warnings = 0, oks = 0;
+
+  // 1. EXTF-Format
+  if (formatKennung === 'EXTF') {
+    checks.push({ type: 'ok', title: 'EXTF-Formatkennung korrekt', detail: `Kennung: "${formatKennung}", Version: ${version}` });
+    oks++;
+  } else {
+    checks.push({ type: 'err', title: 'Keine EXTF-Formatkennung', detail: `Erwartet "EXTF", gefunden: "${formatKennung}"` });
+    errors++;
+  }
+
+  // 2. Datei-Typ
+  if (dateiTyp === 'Buchungsstapel') {
+    checks.push({ type: 'ok', title: 'Datei-Typ korrekt', detail: `Typ: "${dateiTyp}"` });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: 'Unbekannter Datei-Typ', detail: `Gefunden: "${dateiTyp}"` });
+    warnings++;
+  }
+
+  // 3. Währung
+  if (waehrung === 'EUR') {
+    checks.push({ type: 'ok', title: 'Währung EUR', detail: 'Standardwährung gesetzt' });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: 'Abweichende Währung', detail: `Gefunden: "${waehrung}"` });
+    warnings++;
+  }
+
+  // 4. Buchungsperiode
+  if (buchungsVon && buchungsBis) {
+    checks.push({ type: 'ok', title: 'Buchungsperiode angegeben', detail: `${buchungsVon} bis ${buchungsBis}` });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: 'Buchungsperiode fehlt', detail: 'Felder 15/16 leer' });
+    warnings++;
+  }
+
+  // 5. Buchungen vorhanden
+  if (buchungen.length > 0) {
+    checks.push({ type: 'ok', title: `${buchungen.length} Buchungszeilen gefunden`, detail: 'Datei enthält Buchungsdaten' });
+    oks++;
+  } else {
+    checks.push({ type: 'err', title: 'Keine Buchungszeilen', detail: 'Datei enthält keine Buchungsdaten' });
+    errors++;
+  }
+
+  // 6. Kontenprüfung
+  const ungueltigeKonten = new Set();
+  buchungen.forEach(b => {
+    if (b.konto && !isValidKonto(b.konto)) ungueltigeKonten.add(b.konto);
+    if (b.gegenkonto && !isValidKonto(b.gegenkonto)) ungueltigeKonten.add(b.gegenkonto);
+  });
+  if (ungueltigeKonten.size === 0) {
+    checks.push({ type: 'ok', title: 'Alle Kontonummern im gültigen Bereich', detail: 'SKR03: 0000–9999' });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: `${ungueltigeKonten.size} unbekannte Kontonummer(n)`, detail: Array.from(ungueltigeKonten).join(', ') });
+    warnings++;
+  }
+
+  // 7. S/H-Kennzeichen
+  const shFehler = buchungen.filter(b => b.sh !== 'S' && b.sh !== 'H');
+  if (shFehler.length === 0) {
+    checks.push({ type: 'ok', title: 'Soll/Haben-Kennzeichen korrekt', detail: 'Alle Buchungen: S oder H' });
+    oks++;
+  } else {
+    checks.push({ type: 'err', title: `${shFehler.length} fehlerhafte S/H-Kennzeichen`, detail: `Zeilen: ${shFehler.map(b=>b.zeile).join(', ')}` });
+    errors++;
+  }
+
+  // 8. Beträge
+  const betragFehler = buchungen.filter(b => {
+    const v = parseBetrag(b.betrag);
+    return isNaN(v) || v <= 0;
+  });
+  if (betragFehler.length === 0) {
+    checks.push({ type: 'ok', title: 'Alle Beträge gültig (> 0)', detail: `${buchungen.length} Beträge geprüft` });
+    oks++;
+  } else {
+    checks.push({ type: 'err', title: `${betragFehler.length} ungültige Beträge`, detail: `Zeilen: ${betragFehler.map(b=>b.zeile).join(', ')}` });
+    errors++;
+  }
+
+  // 9. Buchungstext vorhanden
+  const ohneText = buchungen.filter(b => !b.buchungstext || b.buchungstext.trim() === '');
+  if (ohneText.length === 0) {
+    checks.push({ type: 'ok', title: 'Alle Buchungen haben Buchungstext', detail: '' });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: `${ohneText.length} Buchungen ohne Buchungstext`, detail: `Zeilen: ${ohneText.map(b=>b.zeile).join(', ')}` });
+    warnings++;
+  }
+
+  // 10. Belegfeld 1 vorhanden
+  const ohneBelegnr = buchungen.filter(b => !b.belegfeld1 || b.belegfeld1.trim() === '');
+  if (ohneBelegnr.length === 0) {
+    checks.push({ type: 'ok', title: 'Alle Buchungen haben Belegnummer', detail: '' });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: `${ohneBelegnr.length} Buchungen ohne Belegnummer (Belegfeld 1)`, detail: `Zeilen: ${ohneBelegnr.map(b=>b.zeile).join(', ')}` });
+    warnings++;
+  }
+
+  // 11. Doppelte Belegnummern
+  const belegfelder = buchungen.map(b => b.belegfeld1).filter(Boolean);
+  const duplikate = belegfelder.filter((v, i, a) => a.indexOf(v) !== i);
+  if (duplikate.length === 0) {
+    checks.push({ type: 'ok', title: 'Keine doppelten Belegnummern', detail: '' });
+    oks++;
+  } else {
+    checks.push({ type: 'warn', title: `Doppelte Belegnummern: ${[...new Set(duplikate)].join(', ')}`, detail: 'Prüfen ob Duplikate beabsichtigt (z.B. Teilzahlungen)' });
+    warnings++;
+  }
+
+  // Kontenübersicht
+  const kontoSummen = {};
+  buchungen.forEach(b => {
+    const konto = b.konto;
+    const betrag = parseBetrag(b.betrag);
+    if (!kontoSummen[konto]) kontoSummen[konto] = 0;
+    kontoSummen[konto] += betrag;
+  });
+
+  return {
+    header: { formatKennung, version, dateiTyp, beraternr, mandantnr, wjBeginn, buchungsVon, buchungsBis, bezeichnung, waehrung },
+    buchungen,
+    checks,
+    stats: { errors, warnings, oks, total: buchungen.length },
+    kontoSummen
+  };
+}
+
+function parseCSVLine(line) {
+  const result = [];
+  let current = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const ch = line[i];
+    if (ch === '"') {
+      inQuotes = !inQuotes;
+    } else if (ch === ';' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += ch;
+    }
+  }
+  result.push(current);
+  return result;
+}
+
+function formatBetrag(str) {
+  const v = parseBetrag(str);
+  if (isNaN(v)) return str;
+  return v.toLocaleString('de-DE', { minimumFractionDigits: 2 }) + ' €';
+}
+
+function render(data) {
+  const { header, buchungen, checks, stats, kontoSummen } = data;
+
+  // Header Info
+  document.getElementById('headerInfo').innerHTML = `
+    <span><b>${header.bezeichnung || '—'}</b></span>
+    <span>Berater: <b>${header.beraternr || '—'}</b></span>
+    <span>Mandant: <b>${header.mandantnr || '—'}</b></span>
+    <span>WJ-Beginn: <b>${header.wjBeginn || '—'}</b></span>
+    <span>Periode: <b>${header.buchungsVon || '—'} → ${header.buchungsBis || '—'}</b></span>
+    <span>Währung: <b>${header.waehrung || '—'}</b></span>
+  `;
+
+  // Summary
+  const totalBrutto = buchungen.reduce((s, b) => {
+    const v = parseBetrag(b.betrag);
+    return s + (isNaN(v) ? 0 : v);
+  }, 0);
+
+  document.getElementById('summary').innerHTML = `
+    <div class="card info">
+      <div class="label">Buchungen</div>
+      <div class="value">${stats.total}</div>
+    </div>
+    <div class="card ok">
+      <div class="label">Checks OK</div>
+      <div class="value">${stats.oks}</div>
+    </div>
+    <div class="card warn">
+      <div class="label">Warnungen</div>
+      <div class="value">${stats.warnings}</div>
+    </div>
+    <div class="card ${stats.errors > 0 ? 'err' : 'ok'}">
+      <div class="label">Fehler</div>
+      <div class="value">${stats.errors}</div>
+    </div>
+  `;
+
+  // Checks
+  document.getElementById('checkList').innerHTML = checks.map(c => `
+    <div class="check-item ${c.type}">
+      <span class="badge ${c.type}">${c.type === 'ok' ? '✓ OK' : c.type === 'warn' ? '⚠ WARN' : '✕ FEHLER'}</span>
+      <div class="check-text">
+        <strong>${c.title}</strong>
+        ${c.detail ? `<span>${c.detail}</span>` : ''}
+      </div>
+    </div>
+  `).join('');
+
+  // Buchungen Tabelle
+  document.getElementById('buchungenBody').innerHTML = buchungen.map((b, i) => {
+    const betragOk = !isNaN(parseBetrag(b.betrag)) && parseBetrag(b.betrag) > 0;
+    const kontoOk = isValidKonto(b.konto);
+    const gkOk = isValidKonto(b.gegenkonto);
+    const shOk = b.sh === 'S' || b.sh === 'H';
+    const rowErr = !betragOk || !kontoOk || !gkOk || !shOk;
+    return `
+      <tr>
+        <td>${i + 1}</td>
+        <td>${b.belegfeld1 || '<span style="color:var(--muted)">—</span>'}</td>
+        <td style="max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${b.buchungstext || '<span style="color:var(--muted)">—</span>'}</td>
+        <td class="${kontoOk ? '' : 'err-cell'}">${b.konto}<br><span style="color:var(--muted);font-family:var(--sans);font-size:10px">${getKontoName(b.konto)}</span></td>
+        <td class="${gkOk ? '' : 'err-cell'}">${b.gegenkonto}<br><span style="color:var(--muted);font-family:var(--sans);font-size:10px">${getKontoName(b.gegenkonto)}</span></td>
+        <td><span class="pill ${b.sh}">${b.sh}</span></td>
+        <td class="num ${betragOk ? 'ok-cell' : 'err-cell'}">${formatBetrag(b.betrag)}</td>
+        <td>${parseDatum(b.belegdatum) || '—'}</td>
+        <td>${rowErr ? '<span style="color:var(--danger);font-size:10px">⚠ prüfen</span>' : '<span style="color:var(--accent2);font-size:10px">✓</span>'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  // Konten
+  document.getElementById('kontoGrid').innerHTML = Object.entries(kontoSummen)
+    .sort(([a],[b]) => parseInt(a) - parseInt(b))
+    .map(([konto, summe]) => `
+      <div class="konto-item">
+        <div>
+          <div><b>${konto}</b></div>
+          <div class="kname">${getKontoName(konto)}</div>
+        </div>
+        <div class="kbetrag">${summe.toLocaleString('de-DE', {minimumFractionDigits:2})} €</div>
+      </div>
+    `).join('');
+
+  document.getElementById('results').classList.add('show');
+}
+
+// ── File Handling ─────────────────────────────────────────────────────────────
+function handleFile(file) {
+  if (!file) return;
+  const bar = document.getElementById('statusBar');
+  const statusText = document.getElementById('statusText');
+  bar.classList.add('show');
+  statusText.textContent = `"${file.name}" wird analysiert…`;
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      // BOM entfernen
+      let text = e.target.result.replace(/^\uFEFF/, '');
+      const data = analyzeFile(text);
+      statusText.textContent = `✓ "${file.name}" analysiert — ${data.stats.total} Buchungen, ${data.stats.errors} Fehler, ${data.stats.warnings} Warnungen`;
+      document.querySelector('.status-dot').style.animation = 'none';
+      document.querySelector('.status-dot').style.background = data.stats.errors > 0 ? 'var(--danger)' : data.stats.warnings > 0 ? 'var(--warn)' : 'var(--accent2)';
+      render(data);
+    } catch(err) {
+      statusText.textContent = `Fehler beim Lesen: ${err.message}`;
+    }
+  };
+  reader.readAsText(file, 'windows-1252');
+}
+
+document.getElementById('fileInput').addEventListener('change', (e) => {
+  handleFile(e.target.files[0]);
+});
+
+const dz = document.getElementById('dropZone');
+dz.addEventListener('dragover', (e) => { e.preventDefault(); dz.classList.add('drag'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('drag'));
+dz.addEventListener('drop', (e) => {
+  e.preventDefault();
+  dz.classList.remove('drag');
+  handleFile(e.dataTransfer.files[0]);
+});
+</script>
+</body>
+</html>

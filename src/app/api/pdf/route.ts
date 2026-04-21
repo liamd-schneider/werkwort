@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import QRCode from 'qrcode'
 
 export async function GET(req: NextRequest) {
   try {
@@ -73,7 +74,43 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const html = generatePDF(dok, betrieb, zahlungslink)
+    // ── QR-Code für Stripe-Zahlungslink generieren und in Storage hochladen ──
+    let stripeQrUrl = ''
+    if (zahlungslink) {
+      try {
+        const qrBuffer = await QRCode.toBuffer(zahlungslink, {
+          width: 200,
+          margin: 1,
+          color: { dark: '#0c0c0c', light: '#f5f9c8' },
+        })
+
+        const storagePath = `qrcodes/stripe_${dokumentId}.png`
+
+        const { error: uploadError } = await (supabaseAdmin as any)
+          .storage
+          .from('email-assets')
+          .upload(storagePath, qrBuffer, {
+            contentType: 'image/png',
+            upsert: true,
+          })
+
+        if (!uploadError) {
+          const { data: urlData } = (supabaseAdmin as any)
+            .storage
+            .from('email-assets')
+            .getPublicUrl(storagePath)
+
+          stripeQrUrl = urlData?.publicUrl || ''
+          console.log('[QR Stripe] URL:', stripeQrUrl)
+        } else {
+          console.error('[QR Stripe] Upload-Fehler:', uploadError)
+        }
+      } catch (err) {
+        console.error('[QR Stripe] Fehler:', err)
+      }
+    }
+
+    const html = generatePDF(dok, betrieb, zahlungslink, stripeQrUrl)
     return new NextResponse(html, {
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     })
@@ -111,7 +148,7 @@ function getDesign(betrieb: any) {
   }
 }
 
-function generatePDF(dok: any, betrieb: any, zahlungslink: string | null) {
+function generatePDF(dok: any, betrieb: any, zahlungslink: string | null, stripeQrUrl = '') {
   const pos       = dok.positionen || []
   const heute     = new Date().toLocaleDateString('de-DE')
   const isRech    = dok.typ === 'rechnung'
@@ -121,10 +158,7 @@ function generatePDF(dok: any, betrieb: any, zahlungslink: string | null) {
   const faelligAm = dok.gueltig_bis ? new Date(dok.gueltig_bis).toLocaleDateString('de-DE') : null
   const d         = getDesign(betrieb)
 
-  // QR-Code URL via Google Charts API (kein npm, funktioniert überall)
-  const qrUrl = zahlungslink
-    ? `https://chart.googleapis.com/chart?chs=140x140&cht=qr&chl=${encodeURIComponent(zahlungslink)}&choe=UTF-8`
-    : null
+  const qrUrl = stripeQrUrl || null
 
   return `<!DOCTYPE html>
 <html lang="de">

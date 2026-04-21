@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import Stripe from 'stripe'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { sendPushToUser } from '@/lib/send-push'
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY!)
 
@@ -58,6 +59,12 @@ export async function GET(req: NextRequest) {
       link:    `/dokumente/${dokumentId}`,
       gelesen: false,
     })
+
+    await sendPushToUser(dok.user_id, {
+  titel: '💰 Zahlung eingegangen',
+  text:  `${dok.kunde_name} hat Rechnung ${dok.nummer} bezahlt.`,
+  link:  `/dokumente/${dokumentId}`,
+})
 
     return NextResponse.redirect(
       `${process.env.NEXT_PUBLIC_APP_URL}/zahlung/danke?nr=${encodeURIComponent(dok.nummer)}`

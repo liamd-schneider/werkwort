@@ -70,7 +70,7 @@ export const TOKEN_KOSTEN = {
 
 // ─── Dokumente ──────────────────────────────────────────────────
 export type DokumentTyp = 'angebot' | 'rechnung' | 'bauvertrag' | 'bautagebuch'
-export type DokumentStatus = 'entwurf' | 'offen' | 'angenommen' | 'bezahlt' | 'abgelehnt' | 'ueberfaellig'
+export type DokumentStatus = 'entwurf' | 'offen' | 'gesendet' | 'angenommen' | 'bezahlt' | 'abgelehnt' | 'ueberfaellig'
 
 export interface Dokument {
   id: string

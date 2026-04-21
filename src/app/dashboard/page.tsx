@@ -14,21 +14,23 @@ interface Stats {
 }
 
 const STATUS_LABELS: Record<DokumentStatus, string> = {
-  entwurf:    'Entwurf',
-  offen:      'Offen',
+  entwurf: 'Entwurf',
+  offen: 'Offen',
   angenommen: 'Angenommen',
-  bezahlt:    'Bezahlt',
-  abgelehnt:  'Abgelehnt',
+  bezahlt: 'Bezahlt',
+  abgelehnt: 'Abgelehnt',
   ueberfaellig: 'Überfällig',
+  gesendet: 'Gesendet',
 }
 
 const STATUS_COLORS: Record<DokumentStatus, string> = {
-  entwurf:      'bg-[#2a2a2a] text-[#888]',
-  offen:        'bg-[#d4e840]/15 text-[#d4e840]',
-  angenommen:   'bg-green-500/15 text-green-400',
-  bezahlt:      'bg-green-500/15 text-green-400',
-  abgelehnt:    'bg-red-500/15 text-red-400',
+  entwurf: 'bg-[#2a2a2a] text-[#888]',
+  offen: 'bg-[#d4e840]/15 text-[#d4e840]',
+  angenommen: 'bg-green-500/15 text-green-400',
+  bezahlt: 'bg-green-500/15 text-green-400',
+  abgelehnt: 'bg-red-500/15 text-red-400',
   ueberfaellig: 'bg-red-500/15 text-red-400',
+  gesendet: 'bg-blue-500/15 text-blue-400',
 }
 
 const TYP_ICON: Record<string, string> = {

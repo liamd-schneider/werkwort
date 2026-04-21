@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react'
 import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
+import { usePushNotifications } from '@/hooks/usePushNotifications'
 
 interface Notification {
   id: string; typ: string; titel: string; text: string | null
@@ -15,14 +16,14 @@ export function NotificationBell() {
   const [open, setOpen]                   = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
+  const { status: pushStatus, subscribe, unsubscribe } = usePushNotifications()
+
   useEffect(() => {
     loadNotifications()
-    // Alle 30 Sekunden aktualisieren
     const interval = setInterval(loadNotifications, 30000)
     return () => clearInterval(interval)
   }, [])
 
-  // Außerhalb klicken → schließen
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
@@ -78,7 +79,6 @@ export function NotificationBell() {
         )}
       </button>
 
-      {/* Dropdown */}
       {open && (
         <div className="absolute left-0 bottom-10 w-72 bg-[#181818] border border-[#2a2a2a] rounded-2xl shadow-2xl overflow-hidden z-50">
           <div className="px-4 py-3 border-b border-[#2a2a2a] flex items-center justify-between">
@@ -89,6 +89,44 @@ export function NotificationBell() {
               </button>
             )}
           </div>
+
+          {/* Push Banner — nur anzeigen wenn noch nicht entschieden */}
+          {pushStatus === 'default' && (
+            <div className="px-4 py-3 border-b border-[#2a2a2a] bg-[#1a1a1a] flex items-center justify-between gap-3">
+              <p className="text-xs text-[#666] leading-relaxed">Push-Benachrichtigungen auf diesem Gerät aktivieren?</p>
+              <button
+                type="button"
+                onClick={subscribe}
+                className="flex-shrink-0 text-xs px-2.5 py-1.5 bg-[#d4e840] text-[#0c0c0c] font-medium rounded-lg hover:opacity-90 transition-opacity">
+                Aktivieren
+              </button>
+            </div>
+          )}
+
+          {/* Push deaktiviert — Hinweis */}
+          {pushStatus === 'denied' && (
+            <div className="px-4 py-3 border-b border-[#2a2a2a] bg-[#1a1a1a]">
+              <p className="text-xs text-[#444] leading-relaxed">
+                Push blockiert — in den Browser-Einstellungen erlauben.
+              </p>
+            </div>
+          )}
+
+          {/* Push aktiv — dezenter Hinweis mit Deaktivieren-Option */}
+          {pushStatus === 'granted' && (
+            <div className="px-4 py-2.5 border-b border-[#2a2a2a] flex items-center justify-between">
+              <p className="text-xs text-[#333] flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 bg-green-500 rounded-full inline-block"/>
+                Push aktiv
+              </p>
+              <button
+                type="button"
+                onClick={unsubscribe}
+                className="text-xs text-[#333] hover:text-[#555] transition-colors">
+                Deaktivieren
+              </button>
+            </div>
+          )}
 
           <div className="max-h-80 overflow-y-auto">
             {notifications.length === 0 ? (
