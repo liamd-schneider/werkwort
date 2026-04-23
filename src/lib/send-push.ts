@@ -18,23 +18,34 @@ interface PushPayload {
 export async function sendPushToUser(userId: string, payload: PushPayload) {
   const { data: subs, error } = await (supabaseAdmin as any)
     .from('push_subscriptions')
-    .select('subscription')
+    .select('id, subscription')
     .eq('user_id', userId)
 
-  if (error || !subs?.length) return
+  if (error) {
+    console.error('Fehler beim Laden der Subscriptions:', error)
+    return
+  }
+
+  if (!subs?.length) return
 
   const results = await Promise.allSettled(
-    subs.map(async (row: { subscription: webpush.PushSubscription }) => {
+    subs.map(async (row: { id: string; subscription: webpush.PushSubscription }) => {
       try {
-        await webpush.sendNotification(row.subscription, JSON.stringify(payload))
+        await webpush.sendNotification(
+          row.subscription,
+          JSON.stringify(payload),
+          { TTL: 60 * 60 * 24 } // 24h Time-to-live
+        )
       } catch (err: any) {
         // Subscription abgelaufen oder ungültig → löschen
         if (err.statusCode === 404 || err.statusCode === 410) {
+          console.log('Subscription ungültig, wird gelöscht:', row.id)
           await (supabaseAdmin as any)
             .from('push_subscriptions')
             .delete()
-            .eq('user_id', userId)
-            .eq('subscription->>endpoint', row.subscription.endpoint)
+            .eq('id', row.id)
+        } else {
+          console.error('Push Fehler:', err.statusCode, err.body)
         }
       }
     })

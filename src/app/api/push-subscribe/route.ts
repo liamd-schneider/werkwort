@@ -17,16 +17,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Ungültige Subscription' }, { status: 400 })
   }
 
+  // Alte Subscription für diesen Endpoint löschen (falls vorhanden)
+  await (supabaseAdmin as any)
+    .from('push_subscriptions')
+    .delete()
+    .eq('user_id', user.id)
+    .filter('subscription->>endpoint', 'eq', subscription.endpoint)
+
+  // Neue Subscription einfügen
   const { error } = await (supabaseAdmin as any)
-  .from('push_subscriptions')
-  .upsert(
-    { user_id: user.id, subscription },
-    { onConflict: 'push_subscriptions_user_endpoint_idx' }
-  )
+    .from('push_subscriptions')
+    .insert({ user_id: user.id, subscription })
 
   if (error) {
     console.error('Push subscription error:', error)
-    return NextResponse.json({ error: 'Datenbankfehler' }, { status: 500 })
+    return NextResponse.json({ error: 'Datenbankfehler', details: error.message }, { status: 500 })
   }
 
   return NextResponse.json({ success: true })
@@ -42,11 +47,11 @@ export async function DELETE(req: NextRequest) {
 
   const { endpoint } = await req.json()
 
-  await supabaseAdmin
+  await (supabaseAdmin as any)
     .from('push_subscriptions')
     .delete()
     .eq('user_id', user.id)
-    .eq('subscription->>endpoint', endpoint)
+    .filter('subscription->>endpoint', 'eq', endpoint)
 
   return NextResponse.json({ success: true })
 }
