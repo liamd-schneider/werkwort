@@ -2,6 +2,12 @@ import { NextResponse } from 'next/server'
 import type { NextRequest } from 'next/server'
 
 export async function middleware(req: NextRequest) {
+   const { pathname } = req.nextUrl
+
+  // Zahlungs-Rückseiten immer erlauben
+  if (pathname === '/zahlungen/danke' || pathname === '/zahlungen/fehler') {
+    return NextResponse.next()
+  }
   const supabaseCookie = req.cookies.getAll().find(c =>
     c.name.startsWith('sb-') && c.name.endsWith('-auth-token')
   )

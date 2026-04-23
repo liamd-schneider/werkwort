@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
               }],
               metadata: { dokument_id: dokumentId, user_id: dok.user_id, rechnung_nr: dok.nummer },
               success_url: `${process.env.NEXT_PUBLIC_APP_URL}/api/zahlung/bestaetigung?session={CHECKOUT_SESSION_ID}&dok=${dokumentId}`,
-              cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`,
+              cancel_url:  `${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/fehler`,
             },
             { stripeAccount: anbieter.stripe_account_id }
           )

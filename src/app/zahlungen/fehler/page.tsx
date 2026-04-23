@@ -2,7 +2,7 @@
 
 export default function ZahlungFehlerPage() {
   return (
-    <div className="min-h-screen bg-[#0c0c0c] text-[#f0ede8] flex items-center justify-center px-6">
+    <div className="fixed inset-0 z-50 bg-[#0c0c0c] text-[#f0ede8] flex items-center justify-center px-6">
       <div className="text-center max-w-md">
         <div className="w-20 h-20 bg-red-500/10 rounded-full flex items-center justify-center mx-auto mb-6">
           <svg className="w-10 h-10 text-red-400" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">

@@ -31,8 +31,10 @@ function ZahlungDankeInner() {
 
 export default function ZahlungDankePage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-[#0c0c0c]"/>}>
-      <ZahlungDankeInner />
-    </Suspense>
+    <div className="fixed inset-0 z-50 bg-[#0c0c0c]">
+      <Suspense fallback={<div className="fixed inset-0 bg-[#0c0c0c]"/>}>
+        <ZahlungDankeInner />
+      </Suspense>
+    </div>
   )
 }

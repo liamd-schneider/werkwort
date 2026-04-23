@@ -11,7 +11,7 @@ export async function GET(req: NextRequest) {
   const dokumentId = searchParams.get('dok')
 
   if (!sessionId || !dokumentId) {
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/fehler`)
   }
 
   try {
@@ -21,7 +21,7 @@ export async function GET(req: NextRequest) {
       .eq('id', dokumentId)
       .single()
 
-    if (!dok) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
+    if (!dok) return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/fehler`)
 
     const { data: anbieter } = await (supabaseAdmin as any)
       .from('zahlungsanbieter')
@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
       .single()
 
     if (!anbieter?.stripe_account_id) {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/fehler`)
     }
 
     // Stripe Session verifizieren
@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
     )
 
     if (session.payment_status !== 'paid') {
-      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
+      return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/fehler`)
     }
 
     // Rechnung auf bezahlt setzen
@@ -67,11 +67,11 @@ export async function GET(req: NextRequest) {
 })
 
     return NextResponse.redirect(
-      `${process.env.NEXT_PUBLIC_APP_URL}/zahlung/danke?nr=${encodeURIComponent(dok.nummer)}`
+      `${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/danke?nr=${encodeURIComponent(dok.nummer)}`
     )
 
   } catch (err) {
     console.error('Bestätigung Fehler:', err)
-    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlung/fehler`)
+    return NextResponse.redirect(`${process.env.NEXT_PUBLIC_APP_URL}/zahlungen/fehler`)
   }
 }
