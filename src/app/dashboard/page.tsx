@@ -6,6 +6,7 @@ import Link from 'next/link'
 import { supabase } from '@/lib/supabase'
 import { Dokument, DokumentStatus } from '@/types'
 
+
 interface Stats {
   offeneAngebote: number
   aktiveBaustellen: number
@@ -123,6 +124,8 @@ export default function DashboardPage() {
   }
 
   return (
+    <div>
+     
     <div className="min-h-screen bg-[#0c0c0c] text-[#f0ede8]">
 
       {/* Top Bar */}
@@ -132,8 +135,8 @@ export default function DashboardPage() {
           <span className="text-lg font-bold text-[#d4e840]">wort</span>
         </div>
         <div className="flex items-center gap-4">
-          <span className="text-sm text-[#555]">{betriebName}</span>
-          <button onClick={handleLogout} className="text-xs text-[#444] hover:text-[#888] transition-colors">
+          <span className="text-sm text-[#888]">{betriebName}</span>
+          <button onClick={handleLogout} className="text-xs text-[#666] hover:text-[#aaa] transition-colors">
             Ausloggen
           </button>
         </div>
@@ -144,32 +147,54 @@ export default function DashboardPage() {
         {/* Greeting */}
         <div className="mb-8">
           <h1 className="text-2xl font-medium">{greeting}</h1>
-          <p className="text-[#555] text-sm mt-1">
+          <p className="text-[#888] text-sm mt-1">
             {new Date().toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' })}
           </p>
         </div>
 
         {/* Stats */}
-        <div className="grid grid-cols-3 gap-3 mb-8">
-          <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
-            <div className="text-2xl font-semibold tabular-nums">{stats.offeneAngebote}</div>
-            <div className="text-xs text-[#555] mt-1">Angebote offen</div>
-          </div>
-          <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
-            <div className="text-2xl font-semibold tabular-nums">{stats.aktiveBaustellen}</div>
-            <div className="text-xs text-[#555] mt-1">Baustellen aktiv</div>
-          </div>
-          <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
-            <div className="text-2xl font-semibold tabular-nums text-[#d4e840]">
-              {stats.ausstehendEuro.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €
+        <div className="mb-8">
+          {/* Desktop: 3 Spalten */}
+          <div className="hidden sm:grid grid-cols-3 gap-3">
+            <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
+              <div className="text-2xl font-semibold tabular-nums">{stats.offeneAngebote}</div>
+              <div className="text-xs text-[#888] mt-1">Angebote offen</div>
             </div>
-            <div className="text-xs text-[#555] mt-1">Ausstehend</div>
+            <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
+              <div className="text-2xl font-semibold tabular-nums">{stats.aktiveBaustellen}</div>
+              <div className="text-xs text-[#888] mt-1">Baustellen aktiv</div>
+            </div>
+            <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
+              <div className="text-2xl font-semibold tabular-nums text-[#d4e840]">
+                {stats.ausstehendEuro.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €
+              </div>
+              <div className="text-xs text-[#888] mt-1">Ausstehend</div>
+            </div>
+          </div>
+          {/* Mobile: 2 Spalten + volle Zeile */}
+          <div className="flex flex-col gap-3 sm:hidden">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
+                <div className="text-2xl font-semibold tabular-nums">{stats.offeneAngebote}</div>
+                <div className="text-xs text-[#888] mt-1">Angebote offen</div>
+              </div>
+              <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4">
+                <div className="text-2xl font-semibold tabular-nums">{stats.aktiveBaustellen}</div>
+                <div className="text-xs text-[#888] mt-1">Baustellen aktiv</div>
+              </div>
+            </div>
+            <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4 flex items-center justify-between">
+              <div className="text-xs text-[#888]">Ausstehend</div>
+              <div className="text-2xl font-semibold tabular-nums text-[#d4e840]">
+                {stats.ausstehendEuro.toLocaleString('de-DE', { maximumFractionDigits: 0 })} €
+              </div>
+            </div>
           </div>
         </div>
 
         {/* Schnellstart */}
         <div className="mb-8">
-          <p className="text-xs text-[#444] uppercase tracking-widest mb-3">Schnellstart</p>
+          <p className="text-xs text-[#888] uppercase tracking-widest mb-3">Schnellstart</p>
           <div className="grid grid-cols-2 gap-3">
             <Link
               href="/neu"
@@ -182,12 +207,13 @@ export default function DashboardPage() {
             </Link>
             <Link
               href="/bautagebuch"
-              className="bg-[#181818] border border-[#2a2a2a] text-[#f0ede8] font-medium py-4 rounded-xl flex items-center justify-center gap-2 hover:border-[#444] transition-all"
+              className="bg-[#181818] border border-[#2a2a2a] text-[#f0ede8] font-medium py-4 px-3 rounded-xl flex items-center justify-center gap-2 hover:border-[#444] transition-all"
             >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+              <svg className="w-4 h-4 flex-shrink-0 sm:w-5 sm:h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                 <rect x="3" y="4" width="18" height="18" rx="2"/><path d="M3 10h18M8 2v4M16 2v4"/>
               </svg>
-              Tagebucheintrag
+              <span className="sm:hidden text-sm">Tagebuch</span>
+              <span className="hidden sm:inline">Tagebucheintrag</span>
             </Link>
           </div>
         </div>
@@ -195,20 +221,23 @@ export default function DashboardPage() {
         {/* Token Stand */}
         <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl p-4 mb-8">
           <div className="flex justify-between items-center mb-3">
-            <span className="text-sm text-[#888]">Token-Guthaben</span>
-            <span className="text-sm font-medium text-[#d4e840] tabular-nums">{stats.tokenGuthaben} Token</span>
+            <span className="text-sm text-[#aaa]">Token-Guthaben</span>
+            <span className="text-sm font-medium text-[#00D4AA] tabular-nums">{stats.tokenGuthaben} Token</span>
           </div>
           <div className="bg-[#111] rounded-full h-1.5 overflow-hidden">
             <div
-              className="h-full bg-[#d4e840] rounded-full transition-all"
-              style={{ width: `${Math.min((stats.tokenGuthaben / 100) * 100, 100)}%` }}
+              className="h-full rounded-full transition-all"
+              style={{
+                width: `${Math.min((stats.tokenGuthaben / 100) * 100, 100)}%`,
+                background: 'linear-gradient(to right, #d4e840, #00D4AA)',
+              }}
             />
           </div>
           <div className="flex justify-between items-center mt-3">
-            <span className="text-xs text-[#444]">
+            <span className="text-xs text-[#888]">
               ~{Math.floor(stats.tokenGuthaben / 1.5)} Dokumente verbleibend
             </span>
-            <Link href="/profil" className="text-xs text-[#d4e840] hover:opacity-75">
+            <Link href="/profil" className="text-xs text-[#00D4AA] hover:opacity-75">
               Token kaufen →
             </Link>
           </div>
@@ -217,8 +246,8 @@ export default function DashboardPage() {
         {/* Letzte Dokumente */}
         <div>
           <div className="flex justify-between items-center mb-3">
-            <p className="text-xs text-[#444] uppercase tracking-widest">Zuletzt erstellt</p>
-            <Link href="/dokumente" className="text-xs text-[#555] hover:text-[#888]">
+            <p className="text-xs text-[#888] uppercase tracking-widest">Zuletzt erstellt</p>
+            <Link href="/dokumente" className="text-xs text-[#888] hover:text-[#bbb]">
               Alle anzeigen →
             </Link>
           </div>
@@ -246,7 +275,7 @@ export default function DashboardPage() {
                   {/* Info */}
                   <div className="flex-1 min-w-0">
                     <div className="text-sm font-medium truncate">{dok.kunde_name}</div>
-                    <div className="text-xs text-[#555] mt-0.5">
+                    <div className="text-xs text-[#888] mt-0.5">
                       {dok.nummer} · {new Date(dok.created_at).toLocaleDateString('de-DE')}
                     </div>
                   </div>
@@ -272,6 +301,7 @@ export default function DashboardPage() {
 
       {/* Bottom padding for nav */}
       <div className="h-24" />
+    </div>
     </div>
   )
 }

@@ -1,9 +1,11 @@
 'use client'
 
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { supabase } from '@/lib/supabase'
 
 export default function AuthPage() {
+  const router = useRouter()
   const [mode, setMode] = useState<'login' | 'register'>('login')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -33,11 +35,16 @@ export default function AuthPage() {
 
       } else {
         const { data, error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+
+        console.log('Supabase data:', data)
+        console.log('Supabase error:', signInError)
+
         if (signInError) throw signInError
 
         if (data.session) {
-          await new Promise(resolve => setTimeout(resolve, 1000))
-          window.location.replace('/dashboard')
+          router.replace('/dashboard')
+        } else if (data.user && !data.user.email_confirmed_at) {
+          setError('Bitte zuerst die E-Mail bestätigen')
         } else {
           setError('Login fehlgeschlagen — keine Session erhalten')
         }
