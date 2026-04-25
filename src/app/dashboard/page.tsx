@@ -25,13 +25,13 @@ const STATUS_LABELS: Record<DokumentStatus, string> = {
 }
 
 const STATUS_COLORS: Record<DokumentStatus, string> = {
-  entwurf: 'bg-[#2a2a2a] text-[#888]',
-  offen: 'bg-[#d4e840]/15 text-[#d4e840]',
-  angenommen: 'bg-green-500/15 text-green-400',
-  bezahlt: 'bg-green-500/15 text-green-400',
-  abgelehnt: 'bg-red-500/15 text-red-400',
-  ueberfaellig: 'bg-red-500/15 text-red-400',
-  gesendet: 'bg-blue-500/15 text-blue-400',
+  entwurf:     'bg-[#2a2a2a] text-[#888]',
+  offen:       'bg-[#d4e840]/15 text-[#d4e840]',
+  angenommen:  'bg-[#d4e840]/20 text-[#d4e840]',
+  bezahlt:     'bg-[#00D4AA]/15 text-[#00D4AA]',
+  abgelehnt:   'bg-red-500/15 text-red-400',
+  ueberfaellig:'bg-red-500/15 text-red-400',
+  gesendet:    'bg-[#00D4AA]/10 text-[#00D4AA]/70',
 }
 
 const TYP_ICON: Record<string, string> = {
@@ -43,9 +43,9 @@ const TYP_ICON: Record<string, string> = {
 
 const TYP_COLOR: Record<string, string> = {
   angebot:     'bg-[#d4e840]/15 text-[#d4e840]',
-  rechnung:    'bg-green-500/15 text-green-400',
-  bauvertrag:  'bg-blue-500/15 text-blue-400',
-  bautagebuch: 'bg-teal-500/15 text-teal-400',
+  rechnung:    'bg-[#00D4AA]/15 text-[#00D4AA]',
+  bauvertrag:  'bg-[#d4e840]/10 text-[#d4e840]/70',
+  bautagebuch: 'bg-[#00D4AA]/10 text-[#00D4AA]/70',
 }
 
 export default function DashboardPage() {
@@ -130,8 +130,9 @@ export default function DashboardPage() {
 
       {/* Top Bar */}
       <div className="border-b border-[#1a1a1a] px-6 py-4 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <span className="text-lg font-light text-[#f0ede8]">werk</span>
+        <div className="flex items-center">
+          <span className="text-lg font-bold text-[#d4e840]">e</span>
+          <span className="text-lg font-light text-[#f0ede8]">Werk</span>
           <span className="text-lg font-bold text-[#d4e840]">wort</span>
         </div>
         <div className="flex items-center gap-4">

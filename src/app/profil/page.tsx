@@ -121,6 +121,11 @@ function ProfilPageInner() {
     setBetrieb({ ...betrieb, logo_url: null })
   }
 
+  const preisLoeschen = async (id: string) => {
+    await (supabase as any).from('preispositionen').delete().eq('id', id)
+    setPreise(preise.filter(p => p.id !== id))
+  }
+
   const preisHinzufuegen = async () => {
     if (!neuePreis.beschreibung || !neuePreis.preis) return
     const { data: { user } } = await supabase.auth.getUser()
@@ -132,18 +137,10 @@ function ProfilPageInner() {
     if (data) { setPreise([...preise, data]); setNeuePreis({ beschreibung: '', einheit: 'm²', preis: '' }) }
   }
 
-  const preisLoeschen = async (id: string) => {
-    await (supabase as any).from('preispositionen').delete().eq('id', id)
-    setPreise(preise.filter(p => p.id !== id))
-  }
-
-  // ─── KI-Import ────────────────────────────────────────────────
   const importDatei = async (file: File) => {
     setImportLoading(true)
     setImportResult(null)
     setImportFehler(null)
-
-    console.log('[import] Datei:', file.name, '| Typ:', file.type, '| Größe:', file.size)
 
     const { data: { session } } = await supabase.auth.getSession()
     const fd = new FormData()
@@ -156,7 +153,6 @@ function ProfilPageInner() {
         body:    fd,
       })
       const data = await res.json()
-      console.log('[import] Antwort:', data)
 
       if (!res.ok || !data.success) {
         setImportFehler(data.error || 'Fehler beim Importieren')
@@ -170,7 +166,6 @@ function ProfilPageInner() {
         }
       }
     } catch (err: any) {
-      console.error('[import] Verbindungsfehler:', err)
       setImportFehler('Verbindungsfehler: ' + err.message)
     }
     setImportLoading(false)
@@ -215,11 +210,12 @@ function ProfilPageInner() {
   return (
     <div className="min-h-screen bg-[#0c0c0c] text-[#f0ede8]">
 
+      {/* Top Bar */}
       <div className="border-b border-[#1a1a1a] px-6 py-4 flex items-center justify-between">
-        <h1 className="text-lg font-medium">Profil</h1>
+        <h1 className="text-lg font-medium text-white">Profil</h1>
         <button type="button"
           onClick={async () => { await supabase.auth.signOut(); router.push('/auth') }}
-          className="text-sm text-[#444] hover:text-[#888] transition-colors">
+          className="text-sm text-[#999] hover:text-[#aaa] transition-colors">
           Ausloggen
         </button>
       </div>
@@ -227,8 +223,8 @@ function ProfilPageInner() {
       {successMsg && (
         <div className={`px-6 py-3 text-sm text-center border-b ${
           successMsg.startsWith('✓')
-            ? 'bg-green-500/10 text-green-400 border-green-500/20'
-            : 'bg-[#2a2a2a] text-[#888] border-[#333]'
+            ? 'bg-[#00D4AA]/10 text-[#00D4AA] border-[#00D4AA]/20'
+            : 'bg-[#2a2a2a] text-[#ccc] border-[#333]'
         }`}>
           {successMsg}
         </div>
@@ -236,8 +232,9 @@ function ProfilPageInner() {
 
       <div className="max-w-4xl mx-auto px-6 py-6">
 
-        {/* Tabs */}
-        <div className="flex bg-[#181818] border border-[#2a2a2a] rounded-xl p-1 mb-8">
+        {/* ─── TABS ─── */}
+        {/* Desktop: eine Reihe */}
+        <div className="hidden sm:flex bg-[#181818] border border-[#2a2a2a] rounded-xl p-1 mb-8 gap-1">
           {([
             { id: 'betrieb',  label: 'Betrieb' },
             { id: 'formular', label: 'Formulardesign' },
@@ -247,8 +244,27 @@ function ProfilPageInner() {
             <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-2.5 text-sm rounded-lg transition-all ${
                 activeTab === tab.id
-                  ? 'bg-[#2a2a2a] text-[#f0ede8] font-medium'
-                  : 'text-[#555] hover:text-[#888]'
+                  ? 'bg-[#2a2a2a] text-white font-medium'
+                  : 'text-[#888] hover:text-[#ccc]'
+              }`}>
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Mobile: 2x2 Grid mit ordentlichem Spacing */}
+        <div className="grid grid-cols-2 gap-2 sm:hidden mb-6">
+          {([
+            { id: 'betrieb',  label: 'Betrieb' },
+            { id: 'formular', label: 'Design' },
+            { id: 'preise',   label: 'Preisliste' },
+            { id: 'token',    label: `Token (${tokenGuthaben})` },
+          ] as const).map(tab => (
+            <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
+              className={`py-3 px-4 text-sm rounded-xl border transition-all font-medium ${
+                activeTab === tab.id
+                  ? 'bg-[#d4e840]/10 border-[#d4e840]/50 text-[#d4e840]'
+                  : 'bg-[#181818] border-[#2a2a2a] text-[#888] hover:text-[#ccc] hover:border-[#444]'
               }`}>
               {tab.label}
             </button>
@@ -258,13 +274,14 @@ function ProfilPageInner() {
         {/* ─── BETRIEB ─── */}
         {activeTab === 'betrieb' && betrieb && (
           <div className="space-y-6">
+            {/* Logo */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Logo</p>
+              <p className="text-xs text-[#999] uppercase tracking-widest mb-4">Logo</p>
               <div className="flex items-center gap-5">
                 <div className="w-20 h-20 bg-[#111] border border-[#2a2a2a] rounded-xl flex items-center justify-center flex-shrink-0 overflow-hidden">
                   {betrieb.logo_url
                     ? <img src={betrieb.logo_url} alt="Logo" className="w-full h-full object-contain p-2"/>
-                    : <span className="text-2xl font-bold text-[#333]">{betrieb.name.slice(0,2).toUpperCase()}</span>}
+                    : <span className="text-2xl font-bold text-[#777]">{betrieb.name.slice(0,2).toUpperCase()}</span>}
                 </div>
                 <div className="flex flex-col gap-2">
                   <input ref={logoInput} type="file" accept="image/*" onChange={logoHochladen} className="hidden"/>
@@ -274,17 +291,18 @@ function ProfilPageInner() {
                   </button>
                   {betrieb.logo_url && (
                     <button type="button" onClick={logoLoeschen}
-                      className="px-4 py-2 border border-red-500/30 text-red-500/70 text-sm rounded-lg hover:text-red-400 transition-all">
+                      className="px-4 py-2 border border-red-500/30 text-red-400/80 text-sm rounded-lg hover:text-red-400 transition-all">
                       Logo entfernen
                     </button>
                   )}
-                  <p className="text-xs text-[#444]">PNG, JPG — max. 2MB</p>
+                  <p className="text-xs text-[#999]">PNG, JPG — max. 2MB</p>
                 </div>
               </div>
             </div>
 
+            {/* Betriebsdaten */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-5">Betriebsdaten</p>
+              <p className="text-xs text-[#999] uppercase tracking-widest mb-5">Betriebsdaten</p>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {[
                   { label: 'Betriebsname *', key: 'name',         placeholder: 'Bauer Fliesen GmbH' },
@@ -297,11 +315,11 @@ function ProfilPageInner() {
                   { label: 'Fußzeile',       key: 'fusszeile',    placeholder: 'Mitglied der HWK · USt-IdNr: DE123456789', full: true },
                 ].map(f => (
                   <div key={f.key} className={(f as any).full ? 'md:col-span-2' : ''}>
-                    <label className="text-xs text-[#666] mb-1.5 block">{f.label}</label>
+                    <label className="text-xs text-[#888] mb-1.5 block">{f.label}</label>
                     <input type="text" value={(betrieb as any)[f.key] || ''}
                       onChange={e => set(f.key as keyof Betrieb, e.target.value)}
                       placeholder={f.placeholder}
-                      className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl px-4 py-3 text-sm text-[#f0ede8] placeholder-[#444] focus:outline-none focus:border-[#d4e840] transition-colors"/>
+                      className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl px-4 py-3 text-sm text-white placeholder-[#555] focus:outline-none focus:border-[#d4e840] transition-colors"/>
                   </div>
                 ))}
               </div>
@@ -316,9 +334,10 @@ function ProfilPageInner() {
         {/* ─── FORMULARDESIGN ─── */}
         {activeTab === 'formular' && betrieb && (
           <div className="space-y-6">
+            {/* Vorschau */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-[#2a2a2a]">
-                <p className="text-xs text-[#444] uppercase tracking-widest">Vorschau</p>
+                <p className="text-xs text-[#999] uppercase tracking-widest">Vorschau</p>
               </div>
               <div className="p-6">
                 <div style={{
@@ -341,43 +360,62 @@ function ProfilPageInner() {
                   <div style={{ background:(betrieb.farbe_accent||'#d4e840')+'20', borderLeft:`3px solid ${betrieb.farbe_accent||'#d4e840'}`, padding:'6px 10px', fontSize:'10px', color:'#333' }}>
                     Mustermann GmbH · Musterstraße 1 · 12345 Stadt
                   </div>
+                  {/* Zusätzliche Vorschau-Elemente */}
+                  <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                    {[['Fliesenlegen', '45,00 €/m²', '20 m²', '900,00 €'], ['Material pauschal', '—', '1x', '350,00 €']].map(([desc, preis, menge, summe], i) => (
+                      <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:'8px', fontSize:'9px', color:'#555', borderBottom:'1px solid #f0f0f0', paddingBottom:'4px', alignItems:'center' }}>
+                        <span>{desc}</span>
+                        <span style={{ textAlign:'right', color:'#888' }}>{preis}</span>
+                        <span style={{ textAlign:'right', color:'#888' }}>{menge}</span>
+                        <span style={{ textAlign:'right', fontWeight:600, color: betrieb.farbe_primary||'#0c0c0c' }}>{summe}</span>
+                      </div>
+                    ))}
+                    <div style={{ display:'flex', justifyContent:'flex-end', fontSize:'11px', fontWeight:700, color: betrieb.farbe_accent||'#d4e840', marginTop:'4px' }}>
+                      Gesamt: 1.250,00 €
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
 
+            {/* Farben */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-5">Farben</p>
-              <div className="grid grid-cols-2 gap-6 mb-4">
+              <p className="text-xs text-[#999] uppercase tracking-widest mb-5">Farben</p>
+
+              {/* Desktop: 2 Spalten, Mobile: 2 Reihen */}
+              <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2">
                 {[
                   { label: 'Primärfarbe', key: 'farbe_primary', def: '#0c0c0c' },
                   { label: 'Akzentfarbe', key: 'farbe_accent',  def: '#d4e840' },
                 ].map(f => (
                   <div key={f.key}>
-                    <label className="text-xs text-[#666] mb-2 block">{f.label}</label>
+                    <label className="text-xs text-[#888] mb-2 block">{f.label}</label>
                     <div className="flex items-center gap-3">
                       <input type="color" value={(betrieb as any)[f.key]||f.def}
                         onChange={e => set(f.key as keyof Betrieb, e.target.value)}
-                        className="w-12 h-10 rounded-lg border border-[#2a2a2a] cursor-pointer bg-transparent"/>
+                        className="w-12 h-10 rounded-lg border border-[#2a2a2a] cursor-pointer bg-transparent flex-shrink-0"/>
                       <input type="text" value={(betrieb as any)[f.key]||f.def}
                         onChange={e => set(f.key as keyof Betrieb, e.target.value)}
-                        className="flex-1 bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-[#f0ede8] font-mono focus:outline-none focus:border-[#d4e840]"/>
+                        className="flex-1 min-w-0 bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2 text-sm text-white font-mono focus:outline-none focus:border-[#d4e840]"/>
                     </div>
                   </div>
                 ))}
               </div>
+
+              <p className="text-xs text-[#999] mb-2">Farbkombinationen</p>
               <div className="flex gap-2 flex-wrap">
                 {[
                   ['#0c0c0c','#d4e840','Standard'],
                   ['#1a3a5c','#e85d24','Klassisch'],
-                  ['#1a1a1a','#1d9e75','Grün'],
+                  ['#1a1a1a','#00D4AA','Mint'],
                   ['#2c3e50','#3498db','Blau'],
                   ['#1a1a1a','#e74c3c','Rot'],
                   ['#2d1a4a','#9b59b6','Lila'],
                 ].map(([p,a,l]) => (
                   <button key={l} type="button"
                     onClick={() => { set('farbe_primary',p); set('farbe_accent',a) }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-lg text-xs text-[#888] hover:border-[#444] transition-all">
-                    <span style={{ background:p, width:10, height:10, borderRadius:'50%', display:'inline-block' }}/>
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-[#111] border border-[#2a2a2a] rounded-lg text-xs text-[#aaa] hover:border-[#444] transition-all">
+                    <span style={{ background:p, width:10, height:10, borderRadius:'50%', display:'inline-block', border:'1px solid #333' }}/>
                     <span style={{ background:a, width:10, height:10, borderRadius:'50%', display:'inline-block' }}/>
                     {l}
                   </button>
@@ -385,9 +423,10 @@ function ProfilPageInner() {
               </div>
             </div>
 
+            {/* Schriftart + Stil */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-                <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Schriftart</p>
+                <p className="text-xs text-[#999] uppercase tracking-widest mb-4">Schriftart</p>
                 <div className="grid grid-cols-2 gap-2">
                   {[['helvetica','Helvetica'],['georgia','Georgia'],['arial','Arial'],['courier','Courier']].map(([id,label]) => (
                     <button key={id} type="button" onClick={() => set('schriftart', id)}
@@ -396,14 +435,14 @@ function ProfilPageInner() {
                           ? 'border-[#d4e840] bg-[#d4e840]/10'
                           : 'border-[#2a2a2a] bg-[#111] hover:border-[#444]'
                       }`}>
-                      <p style={{ fontFamily: id==='georgia'?'Georgia,serif':id==='courier'?'monospace':'Arial,sans-serif', fontSize:'20px' }}>Aa</p>
-                      <p className="text-xs text-[#555] mt-1">{label}</p>
+                      <p style={{ fontFamily: id==='georgia'?'Georgia,serif':id==='courier'?'monospace':'Arial,sans-serif', fontSize:'20px', color:'#fff' }}>Aa</p>
+                      <p className="text-xs text-[#888] mt-1">{label}</p>
                     </button>
                   ))}
                 </div>
               </div>
               <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-                <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Dokumentstil</p>
+                <p className="text-xs text-[#999] uppercase tracking-widest mb-4">Dokumentstil</p>
                 <div className="space-y-2">
                   {STILE.map(s => (
                     <button key={s.id} type="button" onClick={() => set('formular_stil', s.id)}
@@ -412,8 +451,8 @@ function ProfilPageInner() {
                           ? 'border-[#d4e840] bg-[#d4e840]/10'
                           : 'border-[#2a2a2a] bg-[#111] hover:border-[#444]'
                       }`}>
-                      <p className="font-medium text-sm">{s.label}</p>
-                      <p className="text-xs text-[#555] mt-0.5">{s.desc}</p>
+                      <p className="font-medium text-sm text-white">{s.label}</p>
+                      <p className="text-xs text-[#888] mt-0.5">{s.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -430,12 +469,13 @@ function ProfilPageInner() {
         {/* ─── PREISLISTE ─── */}
         {activeTab === 'preise' && (
           <div className="space-y-5">
+            {/* KI-Import */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
               <div className="flex items-center gap-2 mb-1">
-                <p className="text-xs text-[#444] uppercase tracking-widest">KI-Import</p>
-                <span className="text-xs bg-[#d4e840]/15 text-[#d4e840] px-2 py-0.5 rounded-full border border-[#d4e840]/25">Kostenlos</span>
+                <p className="text-xs text-[#999] uppercase tracking-widest">KI-Import</p>
+                <span className="text-xs bg-[#00D4AA]/15 text-[#00D4AA] px-2 py-0.5 rounded-full border border-[#00D4AA]/25">Kostenlos</span>
               </div>
-              <p className="text-xs text-[#555] mb-4 leading-relaxed">
+              <p className="text-xs text-[#888] mb-4 leading-relaxed">
                 Foto von deiner Preistabelle, Excel-Tabelle, PDF oder handgeschriebene Liste — die KI erkennt alle Positionen und trägt sie automatisch ein.
               </p>
 
@@ -446,8 +486,8 @@ function ProfilPageInner() {
                 onClick={() => !importLoading && importInput.current?.click()}
                 className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
                   dragOver
-                    ? 'border-[#d4e840] bg-[#d4e840]/5'
-                    : 'border-[#2a2a2a] hover:border-[#d4e840]/50 hover:bg-[#d4e840]/3'
+                    ? 'border-[#00D4AA] bg-[#00D4AA]/5'
+                    : 'border-[#2a2a2a] hover:border-[#00D4AA]/50 hover:bg-[#00D4AA]/3'
                 } ${importLoading ? 'cursor-wait pointer-events-none' : ''}`}>
                 <input ref={importInput} type="file"
                   accept="image/*,.pdf"
@@ -455,42 +495,42 @@ function ProfilPageInner() {
 
                 {importLoading ? (
                   <div className="flex flex-col items-center gap-3">
-                    <svg className="animate-spin w-8 h-8 text-[#d4e840]" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin w-8 h-8 text-[#00D4AA]" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                     </svg>
-                    <p className="text-sm text-[#888]">KI analysiert deine Datei...</p>
-                    <p className="text-xs text-[#444]">Einen Moment bitte</p>
+                    <p className="text-sm text-[#ccc]">KI analysiert deine Datei...</p>
+                    <p className="text-xs text-[#999]">Einen Moment bitte</p>
                   </div>
                 ) : (
                   <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 bg-[#d4e840]/10 rounded-xl flex items-center justify-center">
-                      <svg className="w-6 h-6 text-[#d4e840]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                    <div className="w-12 h-12 bg-[#00D4AA]/10 rounded-xl flex items-center justify-center">
+                      <svg className="w-6 h-6 text-[#00D4AA]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
                         <path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round"/>
                       </svg>
                     </div>
                     <div>
-                      <p className="text-sm text-[#888]">Datei hier ablegen oder klicken</p>
-                      <p className="text-xs text-[#444] mt-1">Foto · PDF</p>
+                      <p className="text-sm text-[#ccc]">Datei hier ablegen oder klicken</p>
+                      <p className="text-xs text-[#999] mt-1">Foto · PDF</p>
                     </div>
                   </div>
                 )}
               </div>
 
               {importResult && (
-                <div className="mt-3 bg-green-500/10 border border-green-500/20 rounded-xl px-4 py-3 flex items-center gap-3">
-                  <svg className="w-5 h-5 text-green-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <div className="mt-3 bg-[#00D4AA]/10 border border-[#00D4AA]/20 rounded-xl px-4 py-3 flex items-center gap-3">
+                  <svg className="w-5 h-5 text-[#00D4AA] flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                     <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round"/>
                   </svg>
                   <div>
-                    <p className="text-sm text-green-400 font-medium">
+                    <p className="text-sm text-[#00D4AA] font-medium">
                       {importResult.gespeichert} {importResult.gespeichert === 1 ? 'Position' : 'Positionen'} importiert
                     </p>
-                    <p className="text-xs text-green-400/60">
+                    <p className="text-xs text-[#00D4AA]/60">
                       {importResult.gefunden} erkannt · {importResult.gespeichert} gespeichert
                     </p>
                   </div>
-                  <button type="button" onClick={() => setImportResult(null)} className="ml-auto text-green-400/40 hover:text-green-400 transition-colors">
+                  <button type="button" onClick={() => setImportResult(null)} className="ml-auto text-[#00D4AA]/40 hover:text-[#00D4AA] transition-colors">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/></svg>
                   </button>
                 </div>
@@ -509,66 +549,72 @@ function ProfilPageInner() {
               )}
             </div>
 
+            {/* Preisliste */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-1">Meine Preisliste</p>
-              <p className="text-xs text-[#555] mb-5 leading-relaxed">
+              <p className="text-xs text-[#999] uppercase tracking-widest mb-1">Meine Preisliste</p>
+              <p className="text-xs text-[#888] mb-5 leading-relaxed">
                 Die KI übernimmt diese Preise automatisch bei der Dokumenterstellung.
               </p>
 
               {preise.length === 0 ? (
                 <div className="text-center py-8 border border-dashed border-[#2a2a2a] rounded-xl mb-5">
-                  <p className="text-sm text-[#444]">Noch keine Preise hinterlegt</p>
-                  <p className="text-xs text-[#333] mt-1">Importiere eine Datei oder trage Preise manuell ein</p>
+                  <p className="text-sm text-[#999]">Noch keine Preise hinterlegt</p>
+                  <p className="text-xs text-[#888] mt-1">Importiere eine Datei oder trage Preise manuell ein</p>
                 </div>
               ) : (
                 <div className="space-y-2 mb-5">
                   {preise.map(p => (
-                    <div key={p.id} className="flex items-center justify-between bg-[#111] rounded-xl px-4 py-3 group">
-                      <div className="min-w-0">
-                        <p className="text-sm font-medium truncate">{p.beschreibung}</p>
-                      </div>
-                      <div className="flex items-center gap-4 flex-shrink-0">
-                        <span className="text-sm text-[#d4e840] tabular-nums font-medium">
+                    <div key={p.id} className="flex items-start justify-between bg-[#111] rounded-xl px-4 py-3 group gap-3">
+                      {/* Titel immer vollständig anzeigen – kein truncate */}
+                      <div className="flex-1">
+                        <p className="text-sm font-medium text-white leading-snug">{p.beschreibung}</p>
+                        <p className="text-xs text-[#00D4AA] mt-0.5 tabular-nums">
                           {p.preis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/{p.einheit}
-                        </span>
-                        <button type="button" onClick={() => preisLoeschen(p.id)}
-                          className="text-[#333] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100">
-                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                            <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
-                          </svg>
-                        </button>
+                        </p>
                       </div>
+                      <button type="button" onClick={() => preisLoeschen(p.id)}
+                        className="text-[#777] hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100 flex-shrink-0 mt-0.5">
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                          <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/>
+                        </svg>
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
 
+              {/* Manuell hinzufügen – überarbeitetes Layout */}
               <div className="border-t border-[#2a2a2a] pt-5">
-                <p className="text-xs text-[#444] mb-3">Manuell hinzufügen</p>
-                <div className="grid grid-cols-12 gap-2">
+                <p className="text-xs text-[#999] mb-3">Manuell hinzufügen</p>
+                <div className="flex flex-col gap-2">
+                  {/* Zeile 1: Beschreibung (voll) */}
                   <input type="text" value={neuePreis.beschreibung}
                     onChange={e => setNeuePreis({ ...neuePreis, beschreibung: e.target.value })}
                     onKeyDown={e => e.key === 'Enter' && preisHinzufuegen()}
-                    placeholder="z.B. Fliesenlegen"
-                    className="col-span-5 bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-[#f0ede8] placeholder-[#444] focus:outline-none focus:border-[#d4e840] transition-colors"/>
-                  <input type="number" value={neuePreis.preis}
-                    onChange={e => setNeuePreis({ ...neuePreis, preis: e.target.value })}
-                    onKeyDown={e => e.key === 'Enter' && preisHinzufuegen()}
-                    placeholder="Preis €"
-                    className="col-span-3 bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-[#f0ede8] placeholder-[#444] focus:outline-none focus:border-[#d4e840] transition-colors"/>
-                  <select value={neuePreis.einheit}
-                    onChange={e => setNeuePreis({ ...neuePreis, einheit: e.target.value })}
-                    className="col-span-2 bg-[#111] border border-[#2a2a2a] rounded-xl px-2 py-2.5 text-sm text-[#f0ede8] focus:outline-none focus:border-[#d4e840] transition-colors">
-                    {['m²','Stk.','Std.','m','pauschal'].map(e => <option key={e}>{e}</option>)}
-                  </select>
+                    placeholder="Beschreibung, z.B. Fliesenlegen"
+                    className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#555] focus:outline-none focus:border-[#d4e840] transition-colors"/>
+                  {/* Zeile 2: Preis | Zeile 3 Mobile: Einheit – auf Desktop nebeneinander */}
+                  <div className="flex flex-col sm:flex-row gap-2">
+                    <input type="number" value={neuePreis.preis}
+                      onChange={e => setNeuePreis({ ...neuePreis, preis: e.target.value })}
+                      onKeyDown={e => e.key === 'Enter' && preisHinzufuegen()}
+                      placeholder="Preis in €"
+                      className="flex-1 bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#555] focus:outline-none focus:border-[#d4e840] transition-colors"/>
+                    <select value={neuePreis.einheit}
+                      onChange={e => setNeuePreis({ ...neuePreis, einheit: e.target.value })}
+                      className="w-full sm:w-auto bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white focus:outline-none focus:border-[#d4e840] transition-colors">
+                      {['m²','Stk.','Std.','m','pauschal'].map(e => <option key={e}>{e}</option>)}
+                    </select>
+                  </div>
+                  {/* Zeile 3: + Button voll breit */}
                   <button type="button" onClick={preisHinzufuegen}
                     disabled={!neuePreis.beschreibung || !neuePreis.preis}
-                    className="col-span-2 bg-[#d4e840] text-black rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-40 transition-all">
-                    +
+                    className="w-full bg-[#d4e840] text-black rounded-xl py-2.5 text-sm font-bold hover:opacity-90 disabled:opacity-40 transition-all">
+                    + Hinzufügen
                   </button>
                 </div>
-                <p className="text-xs text-[#333] mt-2">
-                  z.B. Fliesenlegen 45 €/m² · Arbeitsstunde 65 €/Std. · Material pauschal
+                <p className="text-xs text-[#999] mt-2">
+                  z.B. Fliesenlegen 45 €/m² · Arbeitsstunde 65 €/Std.
                 </p>
               </div>
             </div>
@@ -578,33 +624,42 @@ function ProfilPageInner() {
         {/* ─── TOKEN ─── */}
         {activeTab === 'token' && (
           <div className="space-y-6">
+            {/* Guthaben */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
               <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-[#444] uppercase tracking-widest">Guthaben</p>
+                <p className="text-xs text-[#999] uppercase tracking-widest">Guthaben</p>
                 <span className="text-3xl font-semibold text-[#d4e840] tabular-nums">{tokenGuthaben} Token</span>
               </div>
               <div className="bg-[#111] rounded-full h-2 overflow-hidden">
-                <div className="h-full bg-[#d4e840] rounded-full" style={{ width:`${Math.min((tokenGuthaben/100)*100,100)}%` }}/>
+                <div className="h-full rounded-full transition-all" style={{
+                  width: `${Math.min((tokenGuthaben/100)*100,100)}%`,
+                  background: 'linear-gradient(to right, #d4e840, #00D4AA)',
+                }}/>
               </div>
-              <p className="text-xs text-[#444] mt-2">
-                ~{Math.floor(tokenGuthaben/1.5)} Dokumente verbleibend &nbsp;·&nbsp;
-                <span className="text-[#333]">Angebot = 2 · Rechnung = 1 · Bautagebuch = 1</span>
+              <p className="text-xs text-[#aaa] mt-2">
+                ~{Math.floor(tokenGuthaben/1.5)} Dokumente verbleibend
               </p>
             </div>
+
+            {/* Pakete */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {PAKETE.map(paket => (
                 <div key={paket.id} className={`bg-[#181818] rounded-2xl p-6 flex flex-col ${paket.beliebt ? 'border-2 border-[#d4e840]' : 'border border-[#2a2a2a]'}`}>
-                  {paket.beliebt && <span className="text-xs bg-[#d4e840]/20 text-[#d4e840] px-3 py-1 rounded-full self-start mb-4 font-medium">Beliebt</span>}
-                  <p className="text-lg font-semibold">{paket.name}</p>
-                  <p className="text-4xl font-bold mt-2 tabular-nums">{paket.token}</p>
-                  <p className="text-sm text-[#555] mb-1">Token</p>
+                  {paket.beliebt && (
+                    <span className="text-xs bg-[#d4e840]/20 text-[#d4e840] px-3 py-1 rounded-full self-start mb-4 font-medium border border-[#d4e840]/30">
+                      Beliebt
+                    </span>
+                  )}
+                  <p className="text-lg font-semibold text-white">{paket.name}</p>
+                  <p className="text-4xl font-bold mt-2 tabular-nums text-white">{paket.token}</p>
+                  <p className="text-sm text-[#888] mb-1">Token</p>
                   <p className="text-xl font-medium text-[#d4e840] mb-4">{paket.preis} €</p>
-                  <p className="text-xs text-[#444] mb-5 flex-1">~{Math.floor(paket.token/1.5)} Dokumente</p>
+                  <p className="text-xs text-[#999] mb-5 flex-1">~{Math.floor(paket.token/1.5)} Dokumente</p>
                   <button type="button" onClick={() => tokenKaufen(paket)} disabled={tokenLoading === paket.id}
                     className={`w-full py-3 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
                       paket.beliebt
                         ? 'bg-[#d4e840] text-black hover:opacity-90'
-                        : 'bg-[#2a2a2a] text-[#f0ede8] hover:bg-[#333]'
+                        : 'bg-[#2a2a2a] text-white hover:bg-[#333]'
                     }`}>
                     {tokenLoading === paket.id
                       ? <span className="flex items-center justify-center gap-2">
@@ -619,10 +674,21 @@ function ProfilPageInner() {
                 </div>
               ))}
             </div>
-            <p className="text-xs text-[#333] text-center">Sicher über Stripe · Einmalig · Token verfallen nicht</p>
+
+            {/* Mint-Hinweis unten */}
+            <div className="bg-[#00D4AA]/8 border border-[#00D4AA]/20 rounded-2xl p-4 flex items-start gap-3">
+              <svg className="w-5 h-5 text-[#00D4AA] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round"/>
+              </svg>
+              <div>
+                <p className="text-sm text-[#00D4AA] font-medium">Token verfallen nicht</p>
+                <p className="text-xs text-[#00D4AA]/70 mt-0.5">Alle gekauften Token bleiben dauerhaft auf deinem Konto. Sicher bezahlt über Stripe.</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
+
       <div className="h-24 md:h-8"/>
     </div>
   )

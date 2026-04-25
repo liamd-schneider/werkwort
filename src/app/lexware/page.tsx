@@ -125,7 +125,7 @@ export default function LexwarePage() {
       </div>
 
       {banner && (
-        <div className={`px-6 py-3 text-sm text-center border-b ${banner.ok ? 'bg-green-500/10 text-green-400 border-green-500/20' : 'bg-[#2a2a2a] text-[#888] border-[#333]'}`}>
+        <div className={`px-6 py-3 text-sm text-center border-b ${banner.ok ? 'bg-green-400/10 text-green-200 border-green-400/20' : 'bg-[#2a2a2a] text-[#888] border-[#333]'}`}>
           {banner.msg}
         </div>
       )}
@@ -135,10 +135,10 @@ export default function LexwarePage() {
         {/* Info-Box */}
         <div className="bg-[#d4e840]/5 border border-[#d4e840]/20 rounded-2xl p-5 space-y-2">
           <p className="text-sm font-medium text-[#d4e840]">Wie es funktioniert</p>
-          <p className="text-sm text-[#888] leading-relaxed">
+          <p className="text-sm text-[#b3b3b3] leading-relaxed">
             Verbinde deinen Lexware Office Account mit einem API-Key. Werkwort überträgt dann deine Rechnungen automatisch nach Lexware — inkl. Kundenkontakt, Positionen, MwSt und Zahlungsbedingungen. Der Steuerberater sieht alles direkt in Lexware.
           </p>
-          <p className="text-xs text-[#555]">
+          <p className="text-xs text-[#b3b3b3] ">
             Benötigt: Lexware Office XL-Plan · Rechnungen werden in Lexware direkt finalisiert (Status: Offen)
           </p>
         </div>
@@ -160,14 +160,14 @@ export default function LexwarePage() {
                   <p className="text-xs text-[#555]">{status.organisation}</p>
                 </div>
               </div>
-              <span className="text-xs bg-green-500/15 text-green-400 px-2.5 py-1 rounded-full">Verbunden</span>
+              <span className="text-xs bg-green-400/15 text-green-200 px-2.5 py-1 rounded-full">Verbunden</span>
             </div>
 
             {/* Sync-Stats */}
             {status.sync_stats && (
               <div className="grid grid-cols-3 gap-3 mb-5">
                 <div className="bg-[#111] rounded-xl p-3 text-center">
-                  <p className="text-xl font-semibold text-green-400 tabular-nums">{status.sync_stats.erfolg}</p>
+                  <p className="text-xl font-semibold text-green-200 tabular-nums">{status.sync_stats.erfolg}</p>
                   <p className="text-xs text-[#555] mt-0.5">Übertragen</p>
                 </div>
                 <div className="bg-[#111] rounded-xl p-3 text-center">
@@ -187,7 +187,8 @@ export default function LexwarePage() {
               </p>
             )}
 
-            <div className="flex gap-3">
+            {/* Buttons: auf Handy untereinander, auf PC nebeneinander */}
+            <div className="flex flex-col sm:flex-row gap-3">
               <button type="button" onClick={allesSyncen} disabled={syncLoading}
                 className="flex-1 py-3 bg-[#d4e840] text-black font-medium text-sm rounded-xl hover:opacity-90 disabled:opacity-40 transition-all flex items-center justify-center gap-2">
                 {syncLoading
@@ -195,7 +196,7 @@ export default function LexwarePage() {
                   : <><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" strokeLinecap="round"/></svg>Alle Rechnungen synchronisieren</>}
               </button>
               <button type="button" onClick={trennen}
-                className="px-4 py-3 border border-red-500/20 text-red-500/60 text-sm rounded-xl hover:text-red-400 hover:border-red-500/40 transition-all">
+                className="sm:px-4 py-3 border border-red-500/20 text-red-500/60 text-sm rounded-xl hover:text-red-400 hover:border-red-500/40 transition-all">
                 Trennen
               </button>
             </div>
@@ -206,8 +207,8 @@ export default function LexwarePage() {
             <p className="text-xs text-[#444] uppercase tracking-widest mb-5">Lexware API-Key einrichten</p>
 
             {/* Anleitung */}
-            <div className="bg-[#111] rounded-xl p-4 mb-5 space-y-2 text-xs text-[#555]">
-              <p className="text-[#888] font-medium">API-Key generieren:</p>
+            <div className="bg-[#111] rounded-xl p-4 mb-5 space-y-2 text-xs text-[#999898]">
+              <p className="text-[#b4b4b4] font-medium">API-Key generieren:</p>
               <ol className="space-y-1.5">
                 {[
                   'Lexware Office öffnen → Einstellungen',
@@ -240,24 +241,25 @@ export default function LexwarePage() {
               </div>
 
               {testResult && (
-                <p className={`text-xs px-3 py-2 rounded-lg ${testResult.ok ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>
+                <p className={`text-xs px-3 py-2 rounded-lg ${testResult.ok ? 'bg-green-400/10 text-green-200' : 'bg-red-500/10 text-red-400'}`}>
                   {testResult.msg}
                 </p>
               )}
 
-              <div className="flex gap-3">
-                <button type="button" onClick={apiKeyTesten} disabled={testLoading || !apiKey.trim()}
-                  className="px-4 py-2.5 border border-[#2a2a2a] text-sm text-[#888] rounded-xl hover:text-[#f0ede8] hover:border-[#444] disabled:opacity-40 transition-all">
-                  {testLoading ? 'Teste...' : 'Verbindung testen'}
-                </button>
+                <div className="flex flex-col gap-3">
                 <button type="button" onClick={verbinden} disabled={saveLoading || !apiKey.trim()}
-                  className="flex-1 py-2.5 bg-[#d4e840] text-black font-medium text-sm rounded-xl hover:opacity-90 disabled:opacity-40 transition-all">
+                  className="w-full py-2.5 bg-[#d4e840] text-black font-medium text-sm rounded-xl hover:opacity-90 disabled:opacity-40 transition-all">
                   {saveLoading ? 'Speichern...' : 'Verbinden & speichern'}
+                </button>
+                <button type="button" onClick={apiKeyTesten} disabled={testLoading || !apiKey.trim()}
+                  className="w-full py-2.5 border border-[#2a2a2a] text-sm text-[#888] rounded-xl hover:text-[#f0ede8] hover:border-[#444] disabled:opacity-40 transition-all">
+                  {testLoading ? 'Teste...' : 'Verbindung testen'}
                 </button>
               </div>
             </div>
           </div>
         )}
+ 
 
         {/* Sync-Log */}
         {log.length > 0 && (
@@ -269,7 +271,7 @@ export default function LexwarePage() {
               {log.map((eintrag, i) => (
                 <div key={eintrag.id}
                   className={`flex items-center gap-4 px-6 py-3.5 ${i !== log.length-1 ? 'border-b border-[#1f1f1f]' : ''}`}>
-                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${eintrag.status === 'success' ? 'bg-green-400' : 'bg-red-400'}`}/>
+                  <div className={`w-2 h-2 rounded-full flex-shrink-0 ${eintrag.status === 'success' ? 'bg-green-300' : 'bg-red-400'}`}/>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm">{eintrag.typ === 'invoice' ? 'Rechnung' : eintrag.typ}</p>
                     {eintrag.lexware_id && <p className="text-xs text-[#444] font-mono">Lexware-ID: {eintrag.lexware_id.slice(0,8)}...</p>}
@@ -284,7 +286,7 @@ export default function LexwarePage() {
           </div>
         )}
 
-        <p className="text-xs text-[#333] text-center pb-4">
+        <p className="text-xs text-[#a09e9e] text-center pb-4">
           API-Key wird verschlüsselt gespeichert · Nur Rechnungen werden übertragen · Benötigt Lexware XL-Plan
         </p>
       </div>

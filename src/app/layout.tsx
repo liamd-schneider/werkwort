@@ -6,7 +6,7 @@ import { BottomNav } from '@/components/BottomNav'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: 'Werkwort — Sprache wird Arbeit',
+  title: 'eWerkwort — Sprache wird Arbeit',
   description: 'KI-Dokumente für Handwerker. Angebote, Rechnungen, Bautagebuch per Sprache.',
 }
 

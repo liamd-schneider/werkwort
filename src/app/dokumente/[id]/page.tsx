@@ -12,10 +12,13 @@ const STATUS_LABELS: Record<DokumentStatus, string> = {
   bezahlt: 'Bezahlt', abgelehnt: 'Abgelehnt', ueberfaellig: 'Überfällig',
 }
 const STATUS_COLORS: Record<DokumentStatus, string> = {
-  entwurf: 'bg-[#2a2a2a] text-[#888]', offen: 'bg-[#d4e840]/15 text-[#d4e840]',
-  gesendet: 'bg-blue-500/15 text-blue-400',
-  angenommen: 'bg-green-500/15 text-green-400', bezahlt: 'bg-green-500/15 text-green-400',
-  abgelehnt: 'bg-red-500/15 text-red-400', ueberfaellig: 'bg-red-500/15 text-red-400',
+  entwurf:    'bg-[#2a2a2a] text-[#aaa]',
+  offen:      'bg-[#d4e840]/15 text-[#d4e840]',
+  gesendet:   'bg-blue-500/15 text-blue-400',
+  angenommen: 'bg-[#00D4AA]/15 text-[#00D4AA]',
+  bezahlt:    'bg-[#00D4AA]/15 text-[#00D4AA]',
+  abgelehnt:  'bg-red-500/15 text-red-400',
+  ueberfaellig: 'bg-red-500/15 text-red-400',
 }
 
 function EditableText({ value, onChange, placeholder = '' }: {
@@ -25,7 +28,7 @@ function EditableText({ value, onChange, placeholder = '' }: {
   if (!editing) return (
     <button type="button" onClick={() => setEditing(true)}
       className="text-left group flex items-center gap-1.5 hover:text-[#d4e840] transition-colors w-full">
-      <span className={value ? '' : 'text-[#444] italic text-sm'}>{value || placeholder}</span>
+      <span className={value ? '' : 'text-[#555] italic text-sm'}>{value || placeholder}</span>
       <svg className="w-3 h-3 opacity-0 group-hover:opacity-100 text-[#d4e840] flex-shrink-0"
         fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
         <path d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
@@ -114,29 +117,13 @@ export default function DokumentDetailPage() {
     setTimeout(() => setSaved(false), 2000)
   }
 
- const statusAendern = async (s: DokumentStatus) => {
-  if (!dok) {
-    console.error('[statusAendern] dok ist null!')
-    return
+  const statusAendern = async (s: DokumentStatus) => {
+    if (!dok) return
+    const { data, error } = await (supabase as any)
+      .from('dokumente').update({ status: s }).eq('id', dok.id).select()
+    if (error) return
+    setDok(prev => prev ? { ...prev, status: s } : prev)
   }
-  console.log('[statusAendern] Starte Update:', { id: dok.id, neuerStatus: s })
-  
-  const { data, error } = await (supabase as any)
-    .from('dokumente')
-    .update({ status: s })
-    .eq('id', dok.id)
-    .select()  // ← wichtig: gibt zurück was wirklich gespeichert wurde
-  
-  console.log('[statusAendern] Ergebnis:', { data, error })
-  
-  if (error) {
-    console.error('[statusAendern] DB-FEHLER:', error)
-    return
-  }
-  
-  setDok(prev => prev ? { ...prev, status: s } : prev)
-  console.log('[statusAendern] State gesetzt auf:', s)
-}
 
   const loeschen = async () => {
     if (!dok) return
@@ -173,132 +160,101 @@ export default function DokumentDetailPage() {
   }
 
   const dokSenden = async () => {
-  if (!dok || !kundeEmail) return
-  setSending(true)
-  const { data: { session } } = await supabase.auth.getSession()
+    if (!dok || !kundeEmail) return
+    setSending(true)
+    const { data: { session } } = await supabase.auth.getSession()
 
-  // E-Rechnung auto-generieren falls noch nicht vorhanden
-  if (dok.typ === 'rechnung' && !finalisiert) {
+    if (dok.typ === 'rechnung' && !finalisiert) {
+      try {
+        const res = await fetch('/api/zugferd', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ dokumentId: dok.id }),
+        })
+        const result = await res.json()
+        if (result.success) {
+          const bytes = Uint8Array.from(atob(result.pdf_b64), c => c.charCodeAt(0))
+          const blob  = new Blob([bytes], { type: 'application/pdf' })
+          const url   = URL.createObjectURL(blob)
+          const a     = document.createElement('a')
+          a.href = url; a.download = `${dok.nummer}_ZUGFeRD_EN16931.pdf`; a.click()
+          URL.revokeObjectURL(url)
+          setFinalisiert(true)
+          setDok(prev => prev ? { ...prev, finalisiert: true } as any : prev)
+        }
+      } catch {}
+    }
+
+    const res = await fetch('/api/sende-angebot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+      body: JSON.stringify({ dokumentId: dok.id, kundeEmail }),
+    })
+    const result = await res.json()
+    setSending(false)
+    if (result.success) { setEmailDialog(false); await statusAendern('gesendet') }
+    else alert(result.error || 'Fehler beim Senden')
+  }
+
+  const zugferdGenerieren = async () => {
+    if (!dok) return
+    setZugferdLoad(true)
     try {
+      const { data: { session } } = await supabase.auth.getSession()
       const res = await fetch('/api/zugferd', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
         body: JSON.stringify({ dokumentId: dok.id }),
       })
       const result = await res.json()
-      if (result.success) {
-        // PDF runterladen
-        const bytes = Uint8Array.from(atob(result.pdf_b64), c => c.charCodeAt(0))
-        const blob  = new Blob([bytes], { type: 'application/pdf' })
-        const url   = URL.createObjectURL(blob)
-        const a     = document.createElement('a')
-        a.href     = url
-        a.download = `${dok.nummer}_ZUGFeRD_EN16931.pdf`
-        a.click()
-        URL.revokeObjectURL(url)
-        setFinalisiert(true)
-        setDok(prev => prev ? { ...prev, finalisiert: true } as any : prev)
-      }
-    } catch {}
-  }
-
-  // Dann normal versenden
-  const res = await fetch('/api/sende-angebot', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-    body: JSON.stringify({ dokumentId: dok.id, kundeEmail }),
-  })
-  const result = await res.json()
-console.log('[dokSenden] API-Ergebnis:', result)
-setSending(false)
-if (result.success) {
-  setEmailDialog(false)
-  console.log('[dokSenden] Rufe statusAendern auf...')
-  await statusAendern('gesendet')
-  console.log('[dokSenden] statusAendern fertig')
-} else {
-  alert(result.error || 'Fehler beim Senden')
-}
-}
-
-  // ZUGFeRD E-Rechnung generieren (GoBD-konform, XSD + Schematron valide)
- // Ersetze die zugferdGenerieren-Funktion in deiner DokumentDetailPage
-// Kein pdfBase64 mehr an die API schicken — die Route holt sich das PDF selbst
-
-const zugferdGenerieren = async () => {
-  if (!dok) return
-  setZugferdLoad(true)
-  try {
-    const { data: { session } } = await supabase.auth.getSession()
-
-    // Nur noch dokumentId schicken — kein PDF-Base64 mehr
-    const res = await fetch('/api/zugferd', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session?.access_token}`,
-      },
-      body: JSON.stringify({ dokumentId: dok.id }),
-    })
-
-    const result = await res.json()
-    if (!result.success) {
-      alert(result.error || 'ZUGFeRD fehlgeschlagen')
-      return
+      if (!result.success) { alert(result.error || 'ZUGFeRD fehlgeschlagen'); return }
+      const bytes = Uint8Array.from(atob(result.pdf_b64), c => c.charCodeAt(0))
+      const blob  = new Blob([bytes], { type: 'application/pdf' })
+      const url   = URL.createObjectURL(blob)
+      const a     = document.createElement('a')
+      a.href = url; a.download = `${dok.nummer}_ZUGFeRD_EN16931.pdf`; a.click()
+      URL.revokeObjectURL(url)
+      setFinalisiert(true)
+      setDok({ ...dok, finalisiert: true } as any)
+      alert('✓ E-Rechnung (ZUGFeRD EN16931) erstellt!')
+    } catch (err: any) {
+      alert('Fehler: ' + err.message)
+    } finally {
+      setZugferdLoad(false)
     }
-
-    // PDF herunterladen (result.pdf_b64 ist echtes Base64)
-    const bytes = Uint8Array.from(atob(result.pdf_b64), c => c.charCodeAt(0))
-    const blob  = new Blob([bytes], { type: 'application/pdf' })
-    const url   = URL.createObjectURL(blob)
-    const a     = document.createElement('a')
-    a.href     = url
-    a.download = `${dok.nummer}_ZUGFeRD_EN16931.pdf`
-    a.click()
-    URL.revokeObjectURL(url)
-
-    setFinalisiert(true)
-    setDok({ ...dok, finalisiert: true } as any)
-    alert('✓ E-Rechnung (ZUGFeRD EN16931) erstellt!')
-  } catch (err: any) {
-    alert('Fehler: ' + err.message)
-  } finally {
-    setZugferdLoad(false)
   }
-}
 
   if (loading) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center"><div className="w-6 h-6 border-2 border-[#d4e840] border-t-transparent rounded-full animate-spin"/></div>
-  if (!dok) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center text-[#555]">Nicht gefunden</div>
+  if (!dok) return <div className="min-h-screen bg-[#0c0c0c] flex items-center justify-center text-[#888]">Nicht gefunden</div>
 
   const pos = dok.positionen as AngebotPosition[]
   const edit = dok.status === 'entwurf'
   const kannSenden = dok.typ === 'angebot' || dok.typ === 'rechnung'
-  // Anmerkungen nur anzeigen wenn relevant (nicht "Angebot"-spezifische Hinweise auf Rechnung)
   const zeigeAnmerkungen = dok.anmerkungen && dok.anmerkungen.trim().length > 0
 
   return (
     <div className="min-h-screen bg-[#0c0c0c] text-[#f0ede8]">
 
       {/* Topbar */}
-      <div className="border-b border-[#1a1a1a] px-6 py-4 flex items-center justify-between gap-4">
+      <div className="border-b border-[#1a1a1a] px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
         <div className="flex items-center gap-3 min-w-0">
-          <Link href="/dokumente" className="text-[#555] hover:text-[#888] flex-shrink-0">
+          <Link href="/dokumente" className="text-[#888] hover:text-[#bbb] flex-shrink-0 transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24"><path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round"/></svg>
           </Link>
           <div className="min-w-0">
-            <h1 className="text-lg font-medium truncate">{dok.kunde_name}</h1>
-            <p className="text-xs text-[#555]">{dok.nummer} · {dok.typ.charAt(0).toUpperCase() + dok.typ.slice(1)}</p>
+            <h1 className="text-base sm:text-lg font-medium truncate">{dok.kunde_name}</h1>
+            <p className="text-xs text-[#888]">{dok.nummer} · {dok.typ.charAt(0).toUpperCase() + dok.typ.slice(1)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3 flex-shrink-0">
+        <div className="flex items-center gap-2 sm:gap-3 flex-shrink-0">
           {edit && <span className="hidden sm:flex text-xs text-[#d4e840] bg-[#d4e840]/10 px-3 py-1 rounded-full border border-[#d4e840]/30">✏️ Bearbeitbar</span>}
-          {finalisiert && <span className="hidden sm:flex text-xs bg-green-500/15 text-green-400 px-3 py-1 rounded-full border border-green-500/30">🔒 GoBD-konform</span>}
+          {finalisiert && <span className="hidden sm:flex text-xs bg-[#00D4AA]/15 text-[#00D4AA] px-3 py-1 rounded-full border border-[#00D4AA]/30">🔒 GoBD-konform</span>}
           <span className={`text-xs px-3 py-1.5 rounded-full font-medium ${STATUS_COLORS[dok.status as DokumentStatus]}`}>{STATUS_LABELS[dok.status as DokumentStatus]}</span>
         </div>
       </div>
 
       {edit && (
-        <div className="bg-[#d4e840]/5 border-b border-[#d4e840]/20 px-6 py-3 flex items-center justify-between">
+        <div className="bg-[#d4e840]/5 border-b border-[#d4e840]/20 px-4 sm:px-6 py-3 flex items-center justify-between">
           <p className="text-xs text-[#d4e840]/70">Klicke auf einen Wert um ihn zu bearbeiten</p>
           <button type="button" onClick={speichern} disabled={saving}
             className="bg-[#d4e840] text-black text-xs font-medium px-4 py-2 rounded-lg hover:opacity-90 disabled:opacity-40 transition-all">
@@ -307,7 +263,7 @@ const zugferdGenerieren = async () => {
         </div>
       )}
 
-      <div className="max-w-6xl mx-auto px-6 py-8">
+      <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
           {/* Hauptinhalt */}
@@ -315,24 +271,29 @@ const zugferdGenerieren = async () => {
 
             {/* Kunde */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6 space-y-4">
-              <p className="text-xs text-[#444] uppercase tracking-widest">Auftraggeber</p>
-              <div><p className="text-xs text-[#555] mb-1">Name</p>
+              <p className="text-xs text-[#888] uppercase tracking-widest">Auftraggeber</p>
+              <div>
+                <p className="text-xs text-[#888] mb-1">Name</p>
                 {edit ? <EditableText value={dok.kunde_name} onChange={v => set('kunde_name', v)} placeholder="Kundenname"/> : <p className="font-medium">{dok.kunde_name}</p>}
               </div>
-              <div><p className="text-xs text-[#555] mb-1">Adresse</p>
-                {edit ? <EditableText value={dok.kunde_adresse || ''} onChange={v => set('kunde_adresse', v)} placeholder="Straße, PLZ Ort"/> : <p className="text-sm text-[#888]">{dok.kunde_adresse || '—'}</p>}
+              <div>
+                <p className="text-xs text-[#888] mb-1">Adresse</p>
+                {edit ? <EditableText value={dok.kunde_adresse || ''} onChange={v => set('kunde_adresse', v)} placeholder="Straße, PLZ Ort"/> : <p className="text-sm text-[#aaa]">{dok.kunde_adresse || '—'}</p>}
               </div>
               <div className="grid grid-cols-2 gap-4">
-                <div><p className="text-xs text-[#555] mb-1">Ausführungszeitraum</p>
+                <div>
+                  <p className="text-xs text-[#888] mb-1">Ausführungszeitraum</p>
                   {edit ? <EditableText value={dok.ausfuehrungszeitraum || ''} onChange={v => set('ausfuehrungszeitraum', v)} placeholder="bis Ende April"/> : <p className="text-sm">{dok.ausfuehrungszeitraum || '—'}</p>}
                 </div>
                 {dok.typ === 'angebot' && (
-                  <div><p className="text-xs text-[#555] mb-1">Gültig bis</p>
+                  <div>
+                    <p className="text-xs text-[#888] mb-1">Gültig bis</p>
                     {edit ? <EditableText value={dok.gueltig_bis || ''} onChange={v => set('gueltig_bis', v)} placeholder="YYYY-MM-DD"/> : <p className="text-sm">{dok.gueltig_bis ? new Date(dok.gueltig_bis).toLocaleDateString('de-DE') : '—'}</p>}
                   </div>
                 )}
                 {dok.typ === 'rechnung' && (
-                  <div><p className="text-xs text-[#555] mb-1">Zahlungsziel (Tage)</p>
+                  <div>
+                    <p className="text-xs text-[#888] mb-1">Zahlungsziel (Tage)</p>
                     {edit ? <EditableText value={String(dok.zahlungsziel || 14)} onChange={v => set('zahlungsziel', parseInt(v) || 14)} placeholder="14"/> : <p className="text-sm">{dok.zahlungsziel} Tage</p>}
                   </div>
                 )}
@@ -342,64 +303,129 @@ const zugferdGenerieren = async () => {
             {/* Positionen */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl overflow-hidden">
               <div className="px-6 py-4 border-b border-[#2a2a2a] flex items-center justify-between">
-                <p className="text-xs text-[#444] uppercase tracking-widest">Leistungspositionen</p>
-                {edit && <button type="button" onClick={addPos} className="text-xs text-[#d4e840] hover:opacity-75 flex items-center gap-1">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
-                  Position hinzufügen
-                </button>}
+                <p className="text-xs text-[#888] uppercase tracking-widest">Leistungspositionen</p>
+                {edit && (
+                  <button type="button" onClick={addPos} className="text-xs text-[#d4e840] hover:opacity-75 flex items-center gap-1">
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" strokeLinecap="round"/></svg>
+                    Position hinzufügen
+                  </button>
+                )}
               </div>
-              <div className="hidden md:grid grid-cols-12 gap-2 px-6 py-2 border-b border-[#1f1f1f] text-xs text-[#444]">
-                <div className="col-span-5">Beschreibung</div><div className="col-span-2 text-center">Menge</div>
-                <div className="col-span-1 text-center">Einheit</div><div className="col-span-2 text-right">Einzelpreis</div>
+
+              {/* Desktop-Header */}
+              <div className="hidden md:grid grid-cols-12 gap-2 px-6 py-2 border-b border-[#1f1f1f] text-xs text-[#666]">
+                <div className="col-span-5">Beschreibung</div>
+                <div className="col-span-2 text-center">Menge</div>
+                <div className="col-span-1 text-center">Einheit</div>
+                <div className="col-span-2 text-right">Einzelpreis</div>
                 <div className="col-span-2 text-right">Gesamt</div>
               </div>
+
               {pos.map((p, i) => (
-                <div key={i} className={`px-6 py-4 group ${i !== pos.length-1 ? 'border-b border-[#1f1f1f]' : ''}`}>
-                  <div className="hidden md:grid grid-cols-12 gap-2 items-center">
-                    <div className="col-span-5">{edit ? <EditableText value={p.beschreibung} onChange={v => updatePos(i,'beschreibung',v)}/> : <p className="text-sm">{p.beschreibung}</p>}</div>
-                    <div className="col-span-2">{edit ? <input type="number" value={p.menge} onChange={e => updatePos(i,'menge',parseFloat(e.target.value)||0)} className="w-full bg-[#111] border border-[#d4e840]/40 rounded-lg px-2 py-1 text-sm text-center text-[#f0ede8] focus:outline-none focus:border-[#d4e840]"/> : <p className="text-sm text-center text-[#888]">{p.menge}</p>}</div>
-                    <div className="col-span-1">{edit ? <select value={p.einheit} onChange={e => updatePos(i,'einheit',e.target.value)} className="w-full bg-[#111] border border-[#d4e840]/40 rounded-lg px-1 py-1 text-xs text-[#f0ede8] focus:outline-none">{['m²','Stk.','Std.','m','pauschal'].map(e=><option key={e}>{e}</option>)}</select> : <p className="text-sm text-center text-[#888]">{p.einheit}</p>}</div>
-                    <div className="col-span-2">{edit ? <input type="number" value={p.einzelpreis} onChange={e => updatePos(i,'einzelpreis',parseFloat(e.target.value)||0)} className="w-full bg-[#111] border border-[#d4e840]/40 rounded-lg px-2 py-1 text-sm text-right text-[#f0ede8] focus:outline-none focus:border-[#d4e840]"/> : <p className="text-sm text-right text-[#888] tabular-nums">{p.einzelpreis.toLocaleString('de-DE',{minimumFractionDigits:2})} €</p>}</div>
+                <div key={i} className={`group ${i !== pos.length - 1 ? 'border-b border-[#1f1f1f]' : ''}`}>
+
+                  {/* ── Desktop ── */}
+                  <div className="hidden md:grid grid-cols-12 gap-2 px-6 py-4 items-center">
+                    <div className="col-span-5">
+                      {edit
+                        ? <EditableText value={p.beschreibung} onChange={v => updatePos(i, 'beschreibung', v)}/>
+                        : <p className="text-sm">{p.beschreibung}</p>}
+                    </div>
+                    <div className="col-span-2">
+                      {edit
+                        ? <input type="number" value={p.menge} onChange={e => updatePos(i, 'menge', parseFloat(e.target.value) || 0)} className="w-full bg-[#111] border border-[#d4e840]/40 rounded-lg px-2 py-1 text-sm text-center text-[#f0ede8] focus:outline-none focus:border-[#d4e840]"/>
+                        : <p className="text-sm text-center text-[#aaa]">{p.menge}</p>}
+                    </div>
+                    <div className="col-span-1">
+                      {edit
+                        ? <select value={p.einheit} onChange={e => updatePos(i, 'einheit', e.target.value)} className="w-full bg-[#111] border border-[#d4e840]/40 rounded-lg px-1 py-1 text-xs text-[#f0ede8] focus:outline-none">{['m²','Stk.','Std.','m','pauschal'].map(e=><option key={e}>{e}</option>)}</select>
+                        : <p className="text-sm text-center text-[#aaa]">{p.einheit}</p>}
+                    </div>
+                    <div className="col-span-2">
+                      {edit
+                        ? <input type="number" value={p.einzelpreis} onChange={e => updatePos(i, 'einzelpreis', parseFloat(e.target.value) || 0)} className="w-full bg-[#111] border border-[#d4e840]/40 rounded-lg px-2 py-1 text-sm text-right text-[#f0ede8] focus:outline-none focus:border-[#d4e840]"/>
+                        : <p className="text-sm text-right text-[#aaa] tabular-nums">{p.einzelpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</p>}
+                    </div>
                     <div className="col-span-2 flex items-center justify-end gap-2">
-                      <p className="text-sm font-medium tabular-nums">{p.gesamtpreis.toLocaleString('de-DE',{minimumFractionDigits:2})} €</p>
-                      {edit && <button type="button" onClick={()=>delPos(i)} className="opacity-0 group-hover:opacity-100 text-[#444] hover:text-red-400 transition-all"><svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg></button>}
+                      <p className="text-sm font-medium tabular-nums">{p.gesamtpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</p>
+                      {edit && (
+                        <button type="button" onClick={() => delPos(i)} className="opacity-0 group-hover:opacity-100 text-[#555] hover:text-red-400 transition-all">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+                        </button>
+                      )}
                     </div>
                   </div>
-                  <div className="md:hidden">
-                    <div className="flex justify-between items-start mb-1">
-                      {edit ? <EditableText value={p.beschreibung} onChange={v=>updatePos(i,'beschreibung',v)}/> : <p className="text-sm font-medium">{p.beschreibung}</p>}
-                      <p className="text-sm font-medium tabular-nums ml-2">{p.gesamtpreis.toLocaleString('de-DE',{minimumFractionDigits:2})} €</p>
+
+                  {/* ── Mobile: Name oben, Menge darunter, Preis in einer Zeile ── */}
+                  <div className="md:hidden px-4 py-3.5">
+                    {/* Zeile 1: vollständiger Name */}
+                    <div className="flex items-start justify-between gap-2 mb-1.5">
+                      <div className="flex-1 min-w-0">
+                        {edit
+                          ? <EditableText value={p.beschreibung} onChange={v => updatePos(i, 'beschreibung', v)}/>
+                          : <p className="text-sm font-medium leading-snug">{p.beschreibung}</p>}
+                      </div>
+                      {edit && (
+                        <button type="button" onClick={() => delPos(i)} className="text-[#555] hover:text-red-400 transition-all flex-shrink-0 mt-0.5">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12" strokeLinecap="round"/></svg>
+                        </button>
+                      )}
                     </div>
-                    <p className="text-xs text-[#555]">{p.menge} {p.einheit} × {p.einzelpreis.toLocaleString('de-DE',{minimumFractionDigits:2})} €</p>
+                    {/* Zeile 2: Menge × Einzelpreis = Gesamt — alles in einer Zeile, kein Umbruch */}
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-xs text-[#888] whitespace-nowrap">
+                        {p.menge} {p.einheit} × {p.einzelpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
+                      </p>
+                      <p className="text-sm font-medium tabular-nums text-[#f0ede8] flex-shrink-0">
+                        {p.gesamtpreis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
+                      </p>
+                    </div>
+                    {/* Edit-Felder für Menge/Einheit/Preis auf Handy */}
+                    {edit && (
+                      <div className="grid grid-cols-3 gap-2 mt-2">
+                        <input type="number" value={p.menge} onChange={e => updatePos(i, 'menge', parseFloat(e.target.value) || 0)}
+                          placeholder="Menge"
+                          className="bg-[#111] border border-[#d4e840]/30 rounded-lg px-2 py-1.5 text-xs text-[#f0ede8] focus:outline-none focus:border-[#d4e840] text-center"/>
+                        <select value={p.einheit} onChange={e => updatePos(i, 'einheit', e.target.value)}
+                          className="bg-[#111] border border-[#d4e840]/30 rounded-lg px-1 py-1.5 text-xs text-[#f0ede8] focus:outline-none">
+                          {['m²','Stk.','Std.','m','pauschal'].map(e => <option key={e}>{e}</option>)}
+                        </select>
+                        <input type="number" value={p.einzelpreis} onChange={e => updatePos(i, 'einzelpreis', parseFloat(e.target.value) || 0)}
+                          placeholder="€"
+                          className="bg-[#111] border border-[#d4e840]/30 rounded-lg px-2 py-1.5 text-xs text-[#f0ede8] focus:outline-none focus:border-[#d4e840] text-right"/>
+                      </div>
+                    )}
                   </div>
                 </div>
               ))}
+
+              {/* Summen */}
               <div className="border-t border-[#2a2a2a] px-6 py-4 space-y-2">
-                <div className="flex justify-between text-sm text-[#888]"><span>Netto</span><span className="tabular-nums">{dok.netto.toLocaleString('de-DE',{minimumFractionDigits:2})} €</span></div>
-                <div className="flex justify-between text-sm text-[#888]"><span>MwSt. 19 %</span><span className="tabular-nums">{dok.mwst.toLocaleString('de-DE',{minimumFractionDigits:2})} €</span></div>
-                <div className="flex justify-between text-base font-medium pt-2 border-t border-[#2a2a2a]"><span>Gesamt</span><span className="tabular-nums">{dok.brutto.toLocaleString('de-DE',{minimumFractionDigits:2})} €</span></div>
+                <div className="flex justify-between text-sm text-[#aaa]"><span>Netto</span><span className="tabular-nums">{dok.netto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</span></div>
+                <div className="flex justify-between text-sm text-[#aaa]"><span>MwSt. 19 %</span><span className="tabular-nums">{dok.mwst.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</span></div>
+                <div className="flex justify-between text-base font-medium pt-2 border-t border-[#2a2a2a]"><span>Gesamt</span><span className="tabular-nums">{dok.brutto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</span></div>
               </div>
             </div>
 
-            {/* Anmerkungen — nur wenn vorhanden und relevant */}
+            {/* Anmerkungen */}
             {zeigeAnmerkungen && (
               <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-                <p className="text-xs text-[#444] uppercase tracking-widest mb-3">Anmerkungen</p>
+                <p className="text-xs text-[#888] uppercase tracking-widest mb-3">Anmerkungen</p>
                 {edit ? (
                   <textarea value={dok.anmerkungen || ''} onChange={e => set('anmerkungen', e.target.value)}
                     placeholder="Zusätzliche Hinweise..." rows={3}
-                    className="w-full bg-[#111] border border-[#d4e840]/40 rounded-xl p-3 text-sm text-[#f0ede8] placeholder-[#444] focus:outline-none focus:border-[#d4e840] resize-none"/>
+                    className="w-full bg-[#111] border border-[#d4e840]/40 rounded-xl p-3 text-sm text-[#f0ede8] placeholder-[#555] focus:outline-none focus:border-[#d4e840] resize-none"/>
                 ) : (
-                  <p className="text-sm text-[#888] leading-relaxed">{dok.anmerkungen}</p>
+                  <p className="text-sm text-[#aaa] leading-relaxed">{dok.anmerkungen}</p>
                 )}
               </div>
             )}
             {edit && !zeigeAnmerkungen && (
               <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-                <p className="text-xs text-[#444] uppercase tracking-widest mb-3">Anmerkungen</p>
+                <p className="text-xs text-[#888] uppercase tracking-widest mb-3">Anmerkungen</p>
                 <textarea value={dok.anmerkungen || ''} onChange={e => set('anmerkungen', e.target.value)}
                   placeholder="Optionale Hinweise für dieses Dokument..." rows={2}
-                  className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl p-3 text-sm text-[#f0ede8] placeholder-[#444] focus:outline-none focus:border-[#d4e840] resize-none transition-colors"/>
+                  className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl p-3 text-sm text-[#f0ede8] placeholder-[#555] focus:outline-none focus:border-[#d4e840] resize-none transition-colors"/>
               </div>
             )}
           </div>
@@ -415,9 +441,8 @@ const zugferdGenerieren = async () => {
 
             {/* Aktionen */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-5">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Aktionen</p>
+              <p className="text-xs text-[#888] uppercase tracking-widest mb-4">Aktionen</p>
               <div className="space-y-2">
-                {/* Senden — für Angebot und Rechnung */}
                 {kannSenden && (
                   <button type="button" onClick={() => setEmailDialog(true)}
                     className="w-full px-4 py-2.5 rounded-xl bg-[#d4e840]/10 border border-[#d4e840]/30 text-sm text-[#d4e840] hover:bg-[#d4e840]/20 transition-all text-left flex items-center gap-2">
@@ -425,39 +450,31 @@ const zugferdGenerieren = async () => {
                     {dok.typ === 'rechnung' ? 'Rechnung senden' : 'An Kunde senden'}
                   </button>
                 )}
-                {/* Angebot → Rechnung */}
                 {dok.typ === 'angebot' && (
                   <button type="button" onClick={zuRechnungUmwandeln} disabled={converting}
-                    className="w-full px-4 py-2.5 rounded-xl bg-green-500/10 border border-green-500/30 text-sm text-green-400 hover:bg-green-500/20 transition-all text-left flex items-center gap-2 disabled:opacity-40">
+                    className="w-full px-4 py-2.5 rounded-xl bg-[#00D4AA]/10 border border-[#00D4AA]/30 text-sm text-[#00D4AA] hover:bg-[#00D4AA]/20 transition-all text-left flex items-center gap-2 disabled:opacity-40">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4" strokeLinecap="round"/></svg>
                     {converting ? 'Wird umgewandelt...' : 'In Rechnung umwandeln'}
                   </button>
                 )}
-                {/* PDF */}
                 <button type="button" onClick={pdfOeffnen}
-                  className="w-full px-4 py-2.5 rounded-xl bg-[#111] border border-[#2a2a2a] text-sm text-[#888] hover:text-[#f0ede8] hover:border-[#444] transition-all text-left flex items-center gap-2">
+                  className="w-full px-4 py-2.5 rounded-xl bg-[#111] border border-[#2a2a2a] text-sm text-[#aaa] hover:text-[#f0ede8] hover:border-[#444] transition-all text-left flex items-center gap-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round"/></svg>
                   PDF exportieren
                 </button>
-                {/* ZUGFeRD E-Rechnung — nur für Rechnungen */}
                 {dok.typ === 'rechnung' && (
                   <button type="button" onClick={zugferdGenerieren} disabled={zugferdLoading}
                     className={`w-full px-4 py-2.5 rounded-xl border text-sm transition-all text-left flex items-center gap-2 disabled:opacity-40 ${
                       finalisiert
-                        ? 'bg-green-500/10 border-green-500/30 text-green-400 cursor-default'
+                        ? 'bg-[#00D4AA]/10 border-[#00D4AA]/30 text-[#00D4AA] cursor-default'
                         : 'bg-blue-500/10 border-blue-500/30 text-blue-400 hover:bg-blue-500/20'
                     }`}>
                     <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" strokeLinecap="round"/>
                     </svg>
-                    {zugferdLoading
-                      ? 'Generiere E-Rechnung...'
-                      : finalisiert
-                        ? '✓ E-Rechnung (ZUGFeRD) erstellt'
-                        : 'E-Rechnung (ZUGFeRD) erstellen'}
+                    {zugferdLoading ? 'Generiere E-Rechnung...' : finalisiert ? '✓ E-Rechnung (ZUGFeRD) erstellt' : 'E-Rechnung (ZUGFeRD) erstellen'}
                   </button>
                 )}
-                {/* Löschen */}
                 <button type="button" onClick={loeschen} disabled={deleting}
                   className="w-full px-4 py-2.5 rounded-xl bg-red-500/5 border border-red-500/20 text-sm text-red-500/70 hover:text-red-400 hover:border-red-500/40 transition-all text-left flex items-center gap-2 disabled:opacity-40 mt-2">
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" strokeLinecap="round"/></svg>
@@ -468,11 +485,11 @@ const zugferdGenerieren = async () => {
 
             {/* Status */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-5">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Status</p>
+              <p className="text-xs text-[#888] uppercase tracking-widest mb-4">Status</p>
               <div className="space-y-2">
                 {(Object.keys(STATUS_LABELS) as DokumentStatus[]).filter(s => s !== dok.status).map(s => (
                   <button key={s} type="button" onClick={() => statusAendern(s)}
-                    className="w-full text-left px-4 py-2.5 rounded-xl bg-[#111] border border-[#2a2a2a] text-sm text-[#888] hover:text-[#f0ede8] hover:border-[#444] transition-all">
+                    className="w-full text-left px-4 py-2.5 rounded-xl bg-[#111] border border-[#2a2a2a] text-sm text-[#aaa] hover:text-[#f0ede8] hover:border-[#444] transition-all">
                     → {STATUS_LABELS[s]}
                   </button>
                 ))}
@@ -481,30 +498,37 @@ const zugferdGenerieren = async () => {
 
             {/* Details */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-5">
-              <p className="text-xs text-[#444] uppercase tracking-widest mb-4">Details</p>
+              <p className="text-xs text-[#888] uppercase tracking-widest mb-4">Details</p>
               <div className="space-y-3 text-sm">
-                {[["Nummer", dok.nummer], ["Typ", dok.typ.charAt(0).toUpperCase()+dok.typ.slice(1)],
-                  ["Erstellt", new Date(dok.created_at).toLocaleDateString("de-DE")],
-                  ["Token", String(dok.token_verbraucht)]].map(([k,v]) => (
-                  <div key={k} className="flex justify-between"><span className="text-[#555]">{k}</span><span>{v}</span></div>
+                {[
+                  ['Nummer', dok.nummer],
+                  ['Typ', dok.typ.charAt(0).toUpperCase() + dok.typ.slice(1)],
+                  ['Erstellt', new Date(dok.created_at).toLocaleDateString('de-DE')],
+                  ['Token', String(dok.token_verbraucht)],
+                ].map(([k, v]) => (
+                  <div key={k} className="flex justify-between">
+                    <span className="text-[#888]">{k}</span>
+                    <span className="text-[#f0ede8]">{v}</span>
+                  </div>
                 ))}
                 {finalisiert && (
                   <>
                     <div className="flex justify-between border-t border-[#2a2a2a] pt-3">
-                      <span className="text-[#555]">E-Rechnung</span>
-                      <span className="text-green-400 text-xs">ZUGFeRD EN16931 ✓</span>
+                      <span className="text-[#888]">E-Rechnung</span>
+                      <span className="text-[#00D4AA] text-xs">ZUGFeRD EN16931 ✓</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-[#555]">GoBD-Status</span>
-                      <span className="text-green-400 text-xs">Finalisiert ✓</span>
+                      <span className="text-[#888]">GoBD-Status</span>
+                      <span className="text-[#00D4AA] text-xs">Finalisiert ✓</span>
                     </div>
                   </>
                 )}
               </div>
             </div>
-            {dok.typ === "rechnung" && !finalisiert && (
-              <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-4 text-xs text-[#444] leading-relaxed">
-                <p className="text-[#666] font-medium mb-1">Was ist eine E-Rechnung?</p>
+
+            {dok.typ === 'rechnung' && !finalisiert && (
+              <div className="bg-[#111] border border-[#2a2a2a] rounded-2xl p-4 text-xs text-[#888] leading-relaxed">
+                <p className="text-[#aaa] font-medium mb-1">Was ist eine E-Rechnung?</p>
                 Seit 2025 gesetzlich vorgeschrieben (B2B). ZUGFeRD EN16931 ist ein PDF mit eingebetteter XML — maschinenlesbar, DATEV-importierbar, GoBD-konform.
               </div>
             )}
@@ -519,16 +543,16 @@ const zugferdGenerieren = async () => {
             <h2 className="text-lg font-medium mb-1">
               {dok.typ === 'rechnung' ? 'Rechnung senden' : 'Angebot senden'}
             </h2>
-            <p className="text-sm text-[#555] mb-5">Das Dokument wird per E-Mail mit PDF-Link versendet.</p>
+            <p className="text-sm text-[#888] mb-5">Das Dokument wird per E-Mail mit PDF-Link versendet.</p>
             <div>
-              <label className="text-xs text-[#666] mb-1.5 block">E-Mail des Kunden</label>
+              <label className="text-xs text-[#888] mb-1.5 block">E-Mail des Kunden</label>
               <input type="email" value={kundeEmail} onChange={e => setKundeEmail(e.target.value)}
                 placeholder="kunde@email.de" autoFocus
-                className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl px-4 py-3 text-sm text-[#f0ede8] placeholder-[#444] focus:outline-none focus:border-[#d4e840] transition-colors"/>
+                className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl px-4 py-3 text-sm text-[#f0ede8] placeholder-[#555] focus:outline-none focus:border-[#d4e840] transition-colors"/>
             </div>
             <div className="flex gap-3 mt-5">
               <button type="button" onClick={() => setEmailDialog(false)}
-                className="flex-1 py-3 rounded-xl border border-[#2a2a2a] text-sm text-[#888] hover:text-[#f0ede8] transition-all">Abbrechen</button>
+                className="flex-1 py-3 rounded-xl border border-[#2a2a2a] text-sm text-[#aaa] hover:text-[#f0ede8] transition-all">Abbrechen</button>
               <button type="button" onClick={dokSenden} disabled={sending || !kundeEmail}
                 className="flex-1 py-3 rounded-xl bg-[#d4e840] text-black font-medium text-sm hover:opacity-90 disabled:opacity-40 transition-all">
                 {sending ? 'Wird gesendet...' : 'Senden'}

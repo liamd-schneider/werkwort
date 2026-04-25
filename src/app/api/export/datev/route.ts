@@ -151,7 +151,7 @@ function generateDatevCSV(
     '9',             // Formatversion
     formatTimestamp(now),
     '',              // Reserviert
-    '"Werkwort"',    // Herkunft (max. 25 Zeichen)
+    '"eWerkwort"',    // Herkunft (max. 25 Zeichen)
     '',              // Exportiert von (Benutzername)
     '',              // Importiert von
     beraternr,       // Beraternummer (1-99999)
@@ -160,7 +160,7 @@ function generateDatevCSV(
     '4',             // Sachkontenlänge (4 = Standard)
     datumVon,        // Datum von JJJJMMTT — DYNAMISCH aus Buchungen
     datumBis,        // Datum bis JJJJMMTT — DYNAMISCH aus Buchungen
-    `"Werkwort ${vonDatum.slice(0,7)} ${skr}"`, // Bezeichnung
+    `"eWerkwort ${vonDatum.slice(0,7)} ${skr}"`, // Bezeichnung
     '',              // Diktatkürzel
     '1',             // Buchungstyp 1 = Finanzbuchführung
     '0',             // Rechnungslegungszweck
