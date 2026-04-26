@@ -196,7 +196,7 @@ export default function DokumentePage() {
           <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-4 mb-4 space-y-4">
             {/* Status */}
             <div>
-              <p className="text-xs text-[#666] uppercase tracking-wider mb-2">Status</p>
+              <p className="text-xs text-[#b1b1b1] uppercase tracking-wider mb-2">Status</p>
               <div className="flex flex-wrap gap-2">
                 <button type="button" onClick={() => setStatusFilter('alle')}
                   className={`px-3 py-1.5 rounded-lg text-xs transition-all ${statusFilter === 'alle' ? 'bg-[#d4e840] text-black font-medium' : 'bg-[#111] border border-[#2a2a2a] text-[#aaa] hover:text-[#f0ede8]'}`}>
@@ -214,7 +214,7 @@ export default function DokumentePage() {
 
             {/* Zeitraum */}
             <div>
-              <p className="text-xs text-[#666] uppercase tracking-wider mb-2">Zeitraum</p>
+              <p className="text-xs text-[#b1b1b1] uppercase tracking-wider mb-2">Zeitraum</p>
               <div className="flex flex-wrap gap-2">
                 {ZEITRAUM_OPTIONS.map(z => (
                   <button key={z.id} type="button" onClick={() => setZeitraum(z.id)}
@@ -227,7 +227,7 @@ export default function DokumentePage() {
 
             {/* Sortierung */}
             <div>
-              <p className="text-xs text-[#666] uppercase tracking-wider mb-2">Sortierung</p>
+              <p className="text-xs text-[#b1b1b1] uppercase tracking-wider mb-2">Sortierung</p>
               <div className="flex flex-wrap gap-2">
                 {([['datum','Datum'],['betrag','Betrag'],['kunde','Kunde']] as const).map(([col, label]) => (
                   <button key={col} type="button" onClick={() => toggleSort(col)}
@@ -327,7 +327,7 @@ export default function DokumentePage() {
           </div>
         ) : gefiltert.length === 0 ? (
           <div className="border border-dashed border-[#2a2a2a] rounded-2xl p-16 text-center">
-            <p className="text-[#666] mb-3">
+            <p className="text-[#b1b1b1] mb-3">
               {aktiveFilter > 0 ? 'Keine Dokumente für diese Filter' : 'Keine Dokumente gefunden'}
             </p>
             {aktiveFilter > 0 ? (
@@ -376,7 +376,7 @@ export default function DokumentePage() {
             {/* ── Desktop Tabelle ── */}
             <div className="hidden sm:block bg-[#181818] border border-[#2a2a2a] rounded-2xl overflow-hidden">
               {/* Tabellenkopf */}
-              <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-[#2a2a2a] text-xs text-[#666] uppercase tracking-wider">
+              <div className="grid grid-cols-12 gap-4 px-5 py-3 border-b border-[#2a2a2a] text-xs text-[#b1b1b1] uppercase tracking-wider">
                 <div className="col-span-1">Typ</div>
                 <div className="col-span-2">Nummer</div>
                 <button type="button" onClick={() => toggleSort('kunde')}

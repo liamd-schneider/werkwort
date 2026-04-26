@@ -369,7 +369,7 @@ export default function BautagebuchPage() {
           {erstellen && (
             <div className="lg:col-span-1">
               <div className="bg-[#181818] border border-[#d4e840]/30 rounded-2xl p-5 sticky top-6 space-y-3">
-                <p className="text-xs text-[#666] uppercase tracking-widest">Neuer Eintrag</p>
+                <p className="text-xs text-[#b1b1b1] uppercase tracking-widest">Neuer Eintrag</p>
                 <div>
                   <label className="text-xs text-[#888] mb-1.5 block">Baustelle (optional)</label>
                   <input type="text" value={form.baustelle} onChange={e => setForm(f => ({ ...f, baustelle: e.target.value }))}
@@ -402,7 +402,7 @@ export default function BautagebuchPage() {
                 <div>
                   <input ref={fotoInput} type="file" accept="image/*" multiple onChange={fotoHinzufuegen} className="hidden"/>
                   <button type="button" onClick={() => fotoInput.current?.click()}
-                    className="w-full py-2.5 border border-dashed border-[#2a2a2a] rounded-xl text-xs text-[#666] hover:border-[#d4e840] hover:text-[#d4e840] transition-all flex items-center justify-center gap-2">
+                    className="w-full py-2.5 border border-dashed border-[#2a2a2a] rounded-xl text-xs text-[#b1b1b1] hover:border-[#d4e840] hover:text-[#d4e840] transition-all flex items-center justify-center gap-2">
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
                       <path d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" strokeLinecap="round"/>
                     </svg>
@@ -555,7 +555,7 @@ export default function BautagebuchPage() {
 
             {/* Suchergebnis-Info */}
             {sucheNormalisiert && (
-              <p className="text-xs text-[#666] mb-4">
+              <p className="text-xs text-[#b1b1b1] mb-4">
                 {gefiltert.length === 0
                   ? 'Keine Einträge gefunden'
                   : `${gefiltert.length} Eintrag${gefiltert.length !== 1 ? 'e' : ''} gefunden`}
@@ -568,7 +568,7 @@ export default function BautagebuchPage() {
               </div>
             ) : gefiltert.length === 0 ? (
               <div className="border border-dashed border-[#2a2a2a] rounded-2xl p-16 text-center">
-                <p className="text-[#666] mb-3">{sucheNormalisiert ? 'Keine Einträge für diese Suche' : 'Noch keine Einträge'}</p>
+                <p className="text-[#b1b1b1] mb-3">{sucheNormalisiert ? 'Keine Einträge für diese Suche' : 'Noch keine Einträge'}</p>
                 {!sucheNormalisiert && (
                   <button type="button" onClick={() => setErstellen(true)} className="text-[#d4e840] text-sm hover:opacity-75">
                     Ersten Eintrag erstellen →
@@ -720,12 +720,12 @@ export default function BautagebuchPage() {
                           <p className="text-sm text-[#ddd] leading-relaxed">{eintrag.ausgefuehrte_arbeiten}</p>
                           {eintrag.lieferungen && (
                             <p className="text-xs text-[#aaa]">
-                              <span className="text-[#666]">Lieferung: </span>{eintrag.lieferungen}
+                              <span className="text-[#b1b1b1]">Lieferung: </span>{eintrag.lieferungen}
                             </p>
                           )}
                           {eintrag.besuche && (
                             <p className="text-xs text-[#aaa]">
-                              <span className="text-[#666]">Besuche: </span>{eintrag.besuche}
+                              <span className="text-[#b1b1b1]">Besuche: </span>{eintrag.besuche}
                             </p>
                           )}
                           {eintrag.besonderheiten && (
@@ -769,7 +769,7 @@ export default function BautagebuchPage() {
                           <p className="text-xs text-[#777] uppercase tracking-wider mb-2">Versionshistorie</p>
                           <div className="space-y-2">
                             {versionen[eintrag.id].length === 0 ? (
-                              <p className="text-xs text-[#666]">Keine früheren Versionen</p>
+                              <p className="text-xs text-[#b1b1b1]">Keine früheren Versionen</p>
                             ) : (() => {
                               const DIFF_FELDER = [
                                 { key: 'ausgefuehrte_arbeiten', label: 'Arbeiten' },
@@ -793,7 +793,7 @@ export default function BautagebuchPage() {
                                         <span className="text-xs text-[#d4e840] font-mono font-bold">V{v.version}</span>
                                         <span className="text-xs text-[#888]">{v.grund}</span>
                                       </div>
-                                      <span className="text-[10px] text-[#666] flex-shrink-0">
+                                      <span className="text-[10px] text-[#b1b1b1] flex-shrink-0">
                                         {new Date(v.erstellt_am).toLocaleString('de-DE')}
                                       </span>
                                     </div>
@@ -804,7 +804,7 @@ export default function BautagebuchPage() {
                                           const nachher = (next as any)[f.key] ?? '—'
                                           return (
                                             <div key={f.key} className="rounded-lg overflow-hidden text-xs">
-                                              <p className="text-[#666] px-2 pt-1.5 pb-0.5">{f.label}</p>
+                                              <p className="text-[#b1b1b1] px-2 pt-1.5 pb-0.5">{f.label}</p>
                                               <div className="grid grid-cols-2 divide-x divide-[#1a1a1a]">
                                                 <div className="bg-red-500/5 px-2 py-1.5">
                                                   <p className="text-[10px] text-red-400/50 mb-0.5">Vorher</p>
@@ -820,7 +820,7 @@ export default function BautagebuchPage() {
                                         })}
                                       </div>
                                     ) : (
-                                      <p className="text-xs text-[#666] italic">Keine inhaltlichen Änderungen in diesem Snapshot</p>
+                                      <p className="text-xs text-[#b1b1b1] italic">Keine inhaltlichen Änderungen in diesem Snapshot</p>
                                     )}
                                     <p className="font-mono text-[9px] text-[#555] truncate">{v.hash_sha256}</p>
                                   </div>

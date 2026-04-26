@@ -228,7 +228,7 @@ function DatevCheckerModal({ onClose, skr }: { onClose: () => void; skr: 'SKR03'
             <h2 className="font-medium text-white">DATEV CSV Prüfung</h2>
             <span className="text-xs bg-[#00D4AA]/15 text-[#00D4AA] px-2 py-0.5 rounded-full font-medium">{skr}</span>
           </div>
-          <button onClick={onClose} className="text-[#666] hover:text-[#f0ede8] transition-colors">
+          <button onClick={onClose} className="text-[#b1b1b1] hover:text-[#f0ede8] transition-colors">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
               <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/>
             </svg>
@@ -260,7 +260,7 @@ function DatevCheckerModal({ onClose, skr }: { onClose: () => void; skr: 'SKR03'
           {result && (
             <>
               {/* Header Info */}
-              <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-[#666] flex flex-wrap gap-x-5 gap-y-1 font-mono">
+              <div className="bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-3 text-xs text-[#b1b1b1] flex flex-wrap gap-x-5 gap-y-1 font-mono">
                 <span><span className="text-[#aaa]">{result.header.bezeichnung || '—'}</span></span>
                 <span>Berater <b className="text-[#f0ede8]">{result.header.beraternr || '—'}</b></span>
                 <span>Mandant <b className="text-[#f0ede8]">{result.header.mandantnr || '—'}</b></span>
@@ -373,7 +373,7 @@ function DatevCheckerModal({ onClose, skr }: { onClose: () => void; skr: 'SKR03'
                       <div key={konto} className="bg-[#181818] border border-[#2a2a2a] rounded-xl px-4 py-2.5 flex justify-between items-center">
                         <div>
                           <span className="font-mono text-sm text-[#f0ede8] font-semibold">{konto}</span>
-                          <p className="text-xs text-[#666] mt-0.5">{getKontoName(konto, skr)}</p>
+                          <p className="text-xs text-[#b1b1b1] mt-0.5">{getKontoName(konto, skr)}</p>
                         </div>
                         <span className="font-mono text-[#d4e840] font-semibold">
                           {summe.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €
@@ -494,7 +494,7 @@ export default function ExportPage() {
 
       {/* Top Bar — grüner Akzent */}
       <div className="border-b border-[#00D4AA]/15 px-6 py-4 flex items-center gap-3">
-        <Link href="/dokumente" className="text-[#666] hover:text-[#aaa] transition-colors">
+        <Link href="/dokumente" className="text-[#b1b1b1] hover:text-[#aaa] transition-colors">
           <svg className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
             <path d="M19 12H5M12 5l-7 7 7 7" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
@@ -511,7 +511,7 @@ export default function ExportPage() {
         <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
           <p className="text-xs text-[#555] uppercase tracking-widest mb-4">Zeitraum</p>
           <div className="mb-4">
-            <p className="text-xs text-[#666] mb-2">Monat wählen</p>
+            <p className="text-xs text-[#b1b1b1] mb-2">Monat wählen</p>
             <div className="flex gap-1.5 flex-wrap">
               {zeitraeume.slice(2, 14).map(z => (
                 <button key={z.label} type="button"
@@ -611,7 +611,7 @@ export default function ExportPage() {
             </div>
           ) : !stats ? (
             <div className="text-center py-8">
-              <p className="text-[#666] text-sm">Keine Rechnungen im gewählten Zeitraum</p>
+              <p className="text-[#b1b1b1] text-sm">Keine Rechnungen im gewählten Zeitraum</p>
               <p className="text-xs text-[#444] mt-1">Nur gesendete Rechnungen werden exportiert (keine Entwürfe)</p>
             </div>
           ) : (

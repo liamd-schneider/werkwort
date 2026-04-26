@@ -279,7 +279,7 @@ export default function ProjektDetailPage() {
 
                             {e.baustelle && (
                               <p className="text-xs text-[#888]">
-                                <span className="text-[#666]">Baustelle: </span>{e.baustelle}
+                                <span className="text-[#b1b1b1]">Baustelle: </span>{e.baustelle}
                               </p>
                             )}
 
@@ -289,7 +289,7 @@ export default function ProjektDetailPage() {
                                   <path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" strokeLinecap="round" strokeLinejoin="round"/>
                                 </svg>
                                 <div>
-                                  <p className="text-xs text-[#666] mb-0.5">Lieferungen</p>
+                                  <p className="text-xs text-[#b1b1b1] mb-0.5">Lieferungen</p>
                                   <p className="text-sm text-[#aaa]">{e.lieferungen}</p>
                                 </div>
                               </div>
@@ -301,7 +301,7 @@ export default function ProjektDetailPage() {
                                   <path d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" strokeLinecap="round"/>
                                 </svg>
                                 <div>
-                                  <p className="text-xs text-[#666] mb-0.5">Besuche</p>
+                                  <p className="text-xs text-[#b1b1b1] mb-0.5">Besuche</p>
                                   <p className="text-sm text-[#aaa]">{e.besuche}</p>
                                 </div>
                               </div>
@@ -321,7 +321,7 @@ export default function ProjektDetailPage() {
 
                             {e.fotos && e.fotos.length > 0 && (
                               <div>
-                                <p className="text-xs text-[#666] mb-2">Fotos ({e.fotos.length})</p>
+                                <p className="text-xs text-[#b1b1b1] mb-2">Fotos ({e.fotos.length})</p>
                                 <div className="grid grid-cols-4 gap-1.5">
                                   {e.fotos.map((url, i) => (
                                     <a key={i} href={url} target="_blank" rel="noopener noreferrer">

@@ -216,7 +216,7 @@ function NotifItem({ n, onClose }: { n: Notification; onClose: () => void }) {
         </p>
         {/* Subtext: helles Grau */}
         {n.text && (
-          <p className={`text-xs mt-0.5 leading-relaxed ${!n.gelesen ? 'text-[#aaa]' : 'text-[#666]'}`}>
+          <p className={`text-xs mt-0.5 leading-relaxed ${!n.gelesen ? 'text-[#aaa]' : 'text-[#b1b1b1]'}`}>
             {n.text}
           </p>
         )}
@@ -377,7 +377,7 @@ function MobileNotifications({ onNavigate }: { onNavigate: () => void }) {
                       </p>
                       {/* Subtext heller */}
                       {n.text && (
-                        <p className={`text-xs mt-0.5 leading-relaxed ${!n.gelesen ? 'text-[#aaa]' : 'text-[#666]'}`}>
+                        <p className={`text-xs mt-0.5 leading-relaxed ${!n.gelesen ? 'text-[#aaa]' : 'text-[#b1b1b1]'}`}>
                           {n.text}
                         </p>
                       )}
@@ -396,7 +396,7 @@ function MobileNotifications({ onNavigate }: { onNavigate: () => void }) {
                         {n.titel}
                       </p>
                       {n.text && (
-                        <p className={`text-xs mt-0.5 ${!n.gelesen ? 'text-[#aaa]' : 'text-[#666]'}`}>
+                        <p className={`text-xs mt-0.5 ${!n.gelesen ? 'text-[#aaa]' : 'text-[#b1b1b1]'}`}>
                           {n.text}
                         </p>
                       )}

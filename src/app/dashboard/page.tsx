@@ -137,7 +137,7 @@ export default function DashboardPage() {
         </div>
         <div className="flex items-center gap-4">
           <span className="text-sm text-[#888]">{betriebName}</span>
-          <button onClick={handleLogout} className="text-xs text-[#666] hover:text-[#aaa] transition-colors">
+          <button onClick={handleLogout} className="text-xs text-[#b1b1b1] hover:text-[#aaa] transition-colors">
             Ausloggen
           </button>
         </div>

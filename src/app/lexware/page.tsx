@@ -231,7 +231,7 @@ export default function LexwarePage() {
 
             <div className="space-y-3">
               <div>
-                <label className="text-xs text-[#666] mb-1.5 block">API-Key</label>
+                <label className="text-xs text-[#b1b1b1] mb-1.5 block">API-Key</label>
                 <input
                   type="password"
                   value={apiKey}

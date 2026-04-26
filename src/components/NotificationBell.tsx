@@ -179,7 +179,7 @@ export function NotificationBell() {
                           </p>
                           {/* Subtext: deutlich heller als vorher */}
                           {n.text && (
-                            <p className={`text-xs mt-0.5 leading-relaxed ${!n.gelesen ? 'text-[#aaa]' : 'text-[#666]'}`}>
+                            <p className={`text-xs mt-0.5 leading-relaxed ${!n.gelesen ? 'text-[#aaa]' : 'text-[#b1b1b1]'}`}>
                               {n.text}
                             </p>
                           )}
@@ -202,7 +202,7 @@ export function NotificationBell() {
                             {n.titel}
                           </p>
                           {n.text && (
-                            <p className={`text-xs mt-0.5 ${!n.gelesen ? 'text-[#aaa]' : 'text-[#666]'}`}>
+                            <p className={`text-xs mt-0.5 ${!n.gelesen ? 'text-[#aaa]' : 'text-[#b1b1b1]'}`}>
                               {n.text}
                             </p>
                           )}

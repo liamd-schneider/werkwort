@@ -313,7 +313,7 @@ export default function DokumentDetailPage() {
               </div>
 
               {/* Desktop-Header */}
-              <div className="hidden md:grid grid-cols-12 gap-2 px-6 py-2 border-b border-[#1f1f1f] text-xs text-[#666]">
+              <div className="hidden md:grid grid-cols-12 gap-2 px-6 py-2 border-b border-[#1f1f1f] text-xs text-[#b1b1b1]">
                 <div className="col-span-5">Beschreibung</div>
                 <div className="col-span-2 text-center">Menge</div>
                 <div className="col-span-1 text-center">Einheit</div>
