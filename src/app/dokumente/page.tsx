@@ -123,7 +123,7 @@ export default function DokumentePage() {
     { id: 'alle',        label: 'Alle',      short: 'Alle' },
     { id: 'angebot',     label: 'Angebote',  short: 'Ang.' },
     { id: 'rechnung',    label: 'Rechnungen',short: 'Rech.' },
-    { id: 'bauvertrag',  label: 'Verträge',  short: 'Vert.' },
+    
     { id: 'bautagebuch', label: 'Tagebuch',  short: 'Tag.' },
   ]
 

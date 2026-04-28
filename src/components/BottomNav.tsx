@@ -96,8 +96,8 @@ function NotificationBell() {
           setOpen(prev => !prev)
           if (!open && ungelesen > 0) alleGelesen()
         }}
-        className={`w-full flex items-center bg-[#00D4AA] gap-3 px-3 py-2.5 rounded-xl transition-all group ${
-          open ? 'bg-[#00D4AA]' : 'hover:bg-[#006450]'
+        className={`w-full flex items-center bg-[#d4e840] gap-3 px-3 py-2.5 rounded-xl transition-all group ${
+          open ? 'bg-[#d4e840]' : 'hover:bg-[#d4e840]'
         }`}
       >
         <div className="relative flex-shrink-0 ">
@@ -108,7 +108,7 @@ function NotificationBell() {
             </span>
           )}
         </div>
-        <span className={`text-sm text-black flex-1 text-left ${ungelesen > 0 || open ? 'text-black font-medium' : 'text-[#888] group-hover:text-white'}`}>
+        <span className={`text-sm text-black flex-1 text-left ${ungelesen > 0 || open ? 'text-black font-medium' : 'text-[#000] group-hover:text-black'}`}>
           Benachrichtigungen
         </span>
         {ungelesen > 0 && (
@@ -541,6 +541,7 @@ export function BottomNav() {
         {/* Footer */}
         <div className="px-5 py-4 border-t border-[#1a1a1a]">
           <p className="text-xs text-[#cecece]">eWerkwort Beta</p>
+          <p className="text-xs text-[#cecece]"><a href="/admin" className="hover:underline">Admin</a></p>
         </div>
       </nav>
 

@@ -14,6 +14,16 @@ interface Betrieb {
 
 interface Preisposition { id: string; beschreibung: string; einheit: string; preis: number }
 
+// Vorschau-Position beim Import (bevor sie gespeichert wird)
+interface ImportPosition {
+  beschreibung: string
+  einheit: string
+  preis: number
+  istDuplikat: boolean
+  duplikatHinweis?: string
+  ausgewaehlt: boolean
+}
+
 const PAKETE = [
   { id: 'starter', name: 'Starter', token: 25,  preis: 9,  priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_STARTER || '' },
   { id: 'pro',     name: 'Pro',     token: 100, preis: 29, priceId: process.env.NEXT_PUBLIC_STRIPE_PRICE_PRO     || '', beliebt: true },
@@ -26,6 +36,11 @@ const STILE = [
   { id: 'bold',      label: 'Bold',      desc: 'Kräftig, auffällig' },
 ]
 
+// Exakter Vergleich (case-insensitiv, Whitespace ignoriert)
+function exaktGleich(a: string, b: string): boolean {
+  return a.toLowerCase().trim() === b.toLowerCase().trim()
+}
+
 function ProfilPageInner() {
   const router       = useRouter()
   const searchParams = useSearchParams()
@@ -35,13 +50,13 @@ function ProfilPageInner() {
   const [loading, setLoading]           = useState(true)
   const [saving, setSaving]             = useState(false)
   const [saved, setSaved]               = useState(false)
-  const [tokenLoading, setTokenLoading] = useState<string | null>(null)
   const [logoUploading, setLogoUp]      = useState(false)
   const [successMsg, setSuccessMsg]     = useState<string | null>(null)
-  const [activeTab, setActiveTab]       = useState<'betrieb'|'formular'|'preise'|'token'>('betrieb')
+  const [activeTab, setActiveTab]       = useState<'betrieb'|'formular'|'preise'>('betrieb')
   const [neuePreis, setNeuePreis]       = useState({ beschreibung: '', einheit: 'm²', preis: '' })
   const [importLoading, setImportLoading] = useState(false)
-  const [importResult, setImportResult]   = useState<{ gefunden: number; gespeichert: number } | null>(null)
+  const [importVorschau, setImportVorschau] = useState<ImportPosition[] | null>(null)
+  const [importSpeichernLoading, setImportSpeichernLoading] = useState(false)
   const [importFehler, setImportFehler]   = useState<string | null>(null)
   const [dragOver, setDragOver]           = useState(false)
   const importInput = useRef<HTMLInputElement>(null)
@@ -52,7 +67,6 @@ function ProfilPageInner() {
     if (searchParams.get('success') === '1') {
       const t = searchParams.get('token')
       setSuccessMsg(`✓ Zahlung erfolgreich! ${t} Token wurden gutgeschrieben.`)
-      setActiveTab('token')
       setTimeout(() => setSuccessMsg(null), 6000)
     }
     if (searchParams.get('canceled') === '1') {
@@ -137,9 +151,10 @@ function ProfilPageInner() {
     if (data) { setPreise([...preise, data]); setNeuePreis({ beschreibung: '', einheit: 'm²', preis: '' }) }
   }
 
+  // ─── IMPORT: Schritt 1 – Datei hochladen, Vorschau aufbauen ───
   const importDatei = async (file: File) => {
     setImportLoading(true)
-    setImportResult(null)
+    setImportVorschau(null)
     setImportFehler(null)
 
     const { data: { session } } = await supabase.auth.getSession()
@@ -157,18 +172,61 @@ function ProfilPageInner() {
       if (!res.ok || !data.success) {
         setImportFehler(data.error || 'Fehler beim Importieren')
       } else {
-        setImportResult({ gefunden: data.gefunden, gespeichert: data.gespeichert })
-        const { data: { user } } = await supabase.auth.getUser()
-        if (user) {
-          const { data: refreshed } = await (supabase as any)
-            .from('preispositionen').select('*').eq('user_id', user.id).order('created_at')
-          setPreise(refreshed || [])
-        }
+        // API gibt { positionen: [{beschreibung, einheit, preis}] } zurück
+        // Nur exakte Duplikate markieren (gleiche Beschreibung + gleiche Einheit)
+        const positionen: ImportPosition[] = (data.positionen || []).map((p: any) => {
+          const duplikat = preise.find(existing =>
+            exaktGleich(existing.beschreibung, p.beschreibung) && existing.einheit === p.einheit
+          )
+          return {
+            beschreibung: p.beschreibung,
+            einheit: p.einheit,
+            preis: p.preis,
+            istDuplikat: !!duplikat,
+            duplikatHinweis: duplikat
+              ? `Bereits vorhanden: „${duplikat.beschreibung}" (${duplikat.preis.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €/${duplikat.einheit})`
+              : undefined,
+            ausgewaehlt: !duplikat, // Duplikate standardmäßig abgewählt
+          }
+        })
+        setImportVorschau(positionen)
       }
     } catch (err: any) {
       setImportFehler('Verbindungsfehler: ' + err.message)
     }
     setImportLoading(false)
+  }
+
+  // ─── IMPORT: Schritt 2 – ausgewählte Positionen speichern ───
+  const importBestaetigen = async () => {
+    if (!importVorschau) return
+    setImportSpeichernLoading(true)
+
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return
+
+    const zuSpeichern = importVorschau.filter(p => p.ausgewaehlt)
+    if (zuSpeichern.length > 0) {
+      const { data: neu } = await (supabase as any).from('preispositionen').insert(
+        zuSpeichern.map(p => ({
+          user_id: user.id,
+          beschreibung: p.beschreibung,
+          einheit: p.einheit,
+          preis: p.preis,
+        }))
+      ).select()
+      if (neu) setPreise(prev => [...prev, ...neu])
+    }
+
+    setImportVorschau(null)
+    setImportSpeichernLoading(false)
+  }
+
+  const importVorschauUpdate = (index: number, changes: Partial<ImportPosition>) => {
+    setImportVorschau(prev => prev
+      ? prev.map((p, i) => i === index ? { ...p, ...changes } : p)
+      : prev
+    )
   }
 
   const onFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -183,19 +241,6 @@ function ProfilPageInner() {
     if (file) importDatei(file)
   }
 
-  const tokenKaufen = async (paket: typeof PAKETE[0]) => {
-    setTokenLoading(paket.id)
-    const { data: { session } } = await supabase.auth.getSession()
-    const res = await fetch('/api/checkout', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
-      body:    JSON.stringify({ paketId: paket.id, priceId: paket.priceId }),
-    })
-    const result = await res.json()
-    if (result.url) window.location.href = result.url
-    else { alert(result.error || 'Fehler beim Checkout'); setTokenLoading(null) }
-  }
-
   const set = (field: keyof Betrieb, value: string) => {
     if (!betrieb) return
     setBetrieb({ ...betrieb, [field]: value })
@@ -206,6 +251,9 @@ function ProfilPageInner() {
       <div className="w-6 h-6 border-2 border-[#d4e840] border-t-transparent rounded-full animate-spin"/>
     </div>
   )
+
+  const alleAusgewaehlt = importVorschau?.every(p => p.ausgewaehlt) ?? false
+  const anzahlAusgewaehlt = importVorschau?.filter(p => p.ausgewaehlt).length ?? 0
 
   return (
     <div className="min-h-screen bg-[#0c0c0c] text-[#f0ede8]">
@@ -233,13 +281,12 @@ function ProfilPageInner() {
       <div className="max-w-4xl mx-auto px-6 py-6">
 
         {/* ─── TABS ─── */}
-        {/* Desktop: eine Reihe */}
+        {/* Desktop */}
         <div className="hidden sm:flex bg-[#181818] border border-[#2a2a2a] rounded-xl p-1 mb-8 gap-1">
           {([
             { id: 'betrieb',  label: 'Betrieb' },
             { id: 'formular', label: 'Formulardesign' },
             { id: 'preise',   label: 'Preisliste' },
-            { id: 'token',    label: `Token (${tokenGuthaben})` },
           ] as const).map(tab => (
             <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
               className={`flex-1 py-2.5 text-sm rounded-lg transition-all ${
@@ -252,16 +299,15 @@ function ProfilPageInner() {
           ))}
         </div>
 
-        {/* Mobile: 2x2 Grid mit ordentlichem Spacing */}
-        <div className="grid grid-cols-2 gap-2 sm:hidden mb-6">
+        {/* Mobile */}
+        <div className="grid grid-cols-3 gap-2 sm:hidden mb-6">
           {([
             { id: 'betrieb',  label: 'Betrieb' },
             { id: 'formular', label: 'Design' },
             { id: 'preise',   label: 'Preisliste' },
-            { id: 'token',    label: `Token (${tokenGuthaben})` },
           ] as const).map(tab => (
             <button key={tab.id} type="button" onClick={() => setActiveTab(tab.id)}
-              className={`py-3 px-4 text-sm rounded-xl border transition-all font-medium ${
+              className={`py-3 px-2 text-sm rounded-xl border transition-all font-medium ${
                 activeTab === tab.id
                   ? 'bg-[#d4e840]/10 border-[#d4e840]/50 text-[#d4e840]'
                   : 'bg-[#181818] border-[#2a2a2a] text-[#888] hover:text-[#ccc] hover:border-[#444]'
@@ -360,7 +406,6 @@ function ProfilPageInner() {
                   <div style={{ background:(betrieb.farbe_accent||'#d4e840')+'20', borderLeft:`3px solid ${betrieb.farbe_accent||'#d4e840'}`, padding:'6px 10px', fontSize:'10px', color:'#333' }}>
                     Mustermann GmbH · Musterstraße 1 · 12345 Stadt
                   </div>
-                  {/* Zusätzliche Vorschau-Elemente */}
                   <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
                     {[['Fliesenlegen', '45,00 €/m²', '20 m²', '900,00 €'], ['Material pauschal', '—', '1x', '350,00 €']].map(([desc, preis, menge, summe], i) => (
                       <div key={i} style={{ display:'grid', gridTemplateColumns:'1fr auto auto auto', gap:'8px', fontSize:'9px', color:'#555', borderBottom:'1px solid #f0f0f0', paddingBottom:'4px', alignItems:'center' }}>
@@ -381,8 +426,6 @@ function ProfilPageInner() {
             {/* Farben */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
               <p className="text-xs text-[#999] uppercase tracking-widest mb-5">Farben</p>
-
-              {/* Desktop: 2 Spalten, Mobile: 2 Reihen */}
               <div className="grid grid-cols-1 gap-4 mb-4 sm:grid-cols-2">
                 {[
                   { label: 'Primärfarbe', key: 'farbe_primary', def: '#0c0c0c' },
@@ -401,7 +444,6 @@ function ProfilPageInner() {
                   </div>
                 ))}
               </div>
-
               <p className="text-xs text-[#999] mb-2">Farbkombinationen</p>
               <div className="flex gap-2 flex-wrap">
                 {[
@@ -469,87 +511,194 @@ function ProfilPageInner() {
         {/* ─── PREISLISTE ─── */}
         {activeTab === 'preise' && (
           <div className="space-y-5">
-            {/* KI-Import */}
-            <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-              <div className="flex items-center gap-2 mb-1">
-                <p className="text-xs text-[#999] uppercase tracking-widest">KI-Import</p>
-                <span className="text-xs bg-[#00D4AA]/15 text-[#00D4AA] px-2 py-0.5 rounded-full border border-[#00D4AA]/25">Kostenlos</span>
-              </div>
-              <p className="text-xs text-[#888] mb-4 leading-relaxed">
-                Foto von deiner Preistabelle, Excel-Tabelle, PDF oder handgeschriebene Liste — die KI erkennt alle Positionen und trägt sie automatisch ein.
-              </p>
 
-              <div
-                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
-                onDragLeave={() => setDragOver(false)}
-                onDrop={onDrop}
-                onClick={() => !importLoading && importInput.current?.click()}
-                className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
-                  dragOver
-                    ? 'border-[#00D4AA] bg-[#00D4AA]/5'
-                    : 'border-[#2a2a2a] hover:border-[#00D4AA]/50 hover:bg-[#00D4AA]/3'
-                } ${importLoading ? 'cursor-wait pointer-events-none' : ''}`}>
-                <input ref={importInput} type="file"
-                  accept="image/*,.pdf"
-                  onChange={onFileChange} className="hidden"/>
+            {/* ── SCHRITT 1: Upload (nur wenn keine Vorschau aktiv) ── */}
+            {!importVorschau && (
+              <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
+                <div className="flex items-center gap-2 mb-1">
+                  <p className="text-xs text-[#999] uppercase tracking-widest">KI-Import</p>
+                  <span className="text-xs bg-[#00D4AA]/15 text-[#00D4AA] px-2 py-0.5 rounded-full border border-[#00D4AA]/25">Kostenlos</span>
+                </div>
+                <p className="text-xs text-[#888] mb-4 leading-relaxed">
+                  Foto von deiner Preistabelle, Excel-Tabelle, PDF oder handgeschriebene Liste — die KI erkennt alle Positionen. Du siehst sie vor dem Speichern.
+                </p>
 
-                {importLoading ? (
-                  <div className="flex flex-col items-center gap-3">
-                    <svg className="animate-spin w-8 h-8 text-[#00D4AA]" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                    </svg>
-                    <p className="text-sm text-[#ccc]">KI analysiert deine Datei...</p>
-                    <p className="text-xs text-[#999]">Einen Moment bitte</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center gap-3">
-                    <div className="w-12 h-12 bg-[#00D4AA]/10 rounded-xl flex items-center justify-center">
-                      <svg className="w-6 h-6 text-[#00D4AA]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
-                        <path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round"/>
+                <div
+                  onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                  onDragLeave={() => setDragOver(false)}
+                  onDrop={onDrop}
+                  onClick={() => !importLoading && importInput.current?.click()}
+                  className={`relative border-2 border-dashed rounded-xl p-8 text-center cursor-pointer transition-all ${
+                    dragOver
+                      ? 'border-[#00D4AA] bg-[#00D4AA]/5'
+                      : 'border-[#2a2a2a] hover:border-[#00D4AA]/50 hover:bg-[#00D4AA]/3'
+                  } ${importLoading ? 'cursor-wait pointer-events-none' : ''}`}>
+                  <input ref={importInput} type="file" accept="image/*,.pdf" onChange={onFileChange} className="hidden"/>
+                  {importLoading ? (
+                    <div className="flex flex-col items-center gap-3">
+                      <svg className="animate-spin w-8 h-8 text-[#00D4AA]" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
                       </svg>
+                      <p className="text-sm text-[#ccc]">KI analysiert deine Datei...</p>
+                      <p className="text-xs text-[#999]">Einen Moment bitte</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-[#ccc]">Datei hier ablegen oder klicken</p>
-                      <p className="text-xs text-[#999] mt-1">Foto · PDF</p>
+                  ) : (
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-12 h-12 bg-[#00D4AA]/10 rounded-xl flex items-center justify-center">
+                        <svg className="w-6 h-6 text-[#00D4AA]" fill="none" stroke="currentColor" strokeWidth={1.8} viewBox="0 0 24 24">
+                          <path d="M9 13h6m-3-3v6m5 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="text-sm text-[#ccc]">Datei hier ablegen oder klicken</p>
+                        <p className="text-xs text-[#999] mt-1">Foto · PDF</p>
+                      </div>
                     </div>
+                  )}
+                </div>
+
+                {importFehler && (
+                  <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex items-center gap-3">
+                    <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                      <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round"/>
+                    </svg>
+                    <p className="text-sm text-red-400">{importFehler}</p>
+                    <button type="button" onClick={() => setImportFehler(null)} className="ml-auto text-red-400/40 hover:text-red-400 transition-colors">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/></svg>
+                    </button>
                   </div>
                 )}
               </div>
+            )}
 
-              {importResult && (
-                <div className="mt-3 bg-[#00D4AA]/10 border border-[#00D4AA]/20 rounded-xl px-4 py-3 flex items-center gap-3">
-                  <svg className="w-5 h-5 text-[#00D4AA] flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round"/>
-                  </svg>
+            {/* ── SCHRITT 2: Vorschau & Bestätigen ── */}
+            {importVorschau && (
+              <div className="bg-[#181818] border border-[#00D4AA]/30 rounded-2xl overflow-hidden">
+                {/* Header */}
+                <div className="px-6 py-4 border-b border-[#2a2a2a] flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm text-[#00D4AA] font-medium">
-                      {importResult.gespeichert} {importResult.gespeichert === 1 ? 'Position' : 'Positionen'} importiert
+                    <p className="text-sm font-medium text-white">
+                      {importVorschau.length} {importVorschau.length === 1 ? 'Position' : 'Positionen'} erkannt
                     </p>
-                    <p className="text-xs text-[#00D4AA]/60">
-                      {importResult.gefunden} erkannt · {importResult.gespeichert} gespeichert
+                    <p className="text-xs text-[#888] mt-0.5">
+                      Prüfe und bearbeite die Positionen, dann hinzufügen.
                     </p>
                   </div>
-                  <button type="button" onClick={() => setImportResult(null)} className="ml-auto text-[#00D4AA]/40 hover:text-[#00D4AA] transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/></svg>
+                  <button
+                    type="button"
+                    onClick={() => setImportVorschau(prev => prev?.map(p => ({ ...p, ausgewaehlt: !alleAusgewaehlt })) ?? prev)}
+                    className="text-xs text-[#00D4AA] hover:text-[#00D4AA]/70 transition-colors whitespace-nowrap flex-shrink-0"
+                  >
+                    {alleAusgewaehlt ? 'Alle abwählen' : 'Alle auswählen'}
                   </button>
                 </div>
-              )}
 
-              {importFehler && (
-                <div className="mt-3 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 flex items-center gap-3">
-                  <svg className="w-5 h-5 text-red-400 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                    <path d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" strokeLinecap="round"/>
-                  </svg>
-                  <p className="text-sm text-red-400">{importFehler}</p>
-                  <button type="button" onClick={() => setImportFehler(null)} className="ml-auto text-red-400/40 hover:text-red-400 transition-colors">
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/></svg>
+                {/* Positionen */}
+                <div className="divide-y divide-[#1e1e1e]">
+                  {importVorschau.map((pos, idx) => (
+                    <div key={idx} className={`px-6 py-4 transition-colors ${pos.ausgewaehlt ? '' : 'opacity-40'}`}>
+                      <div className="flex items-start gap-3">
+                        {/* Checkbox */}
+                        <button
+                          type="button"
+                          onClick={() => importVorschauUpdate(idx, { ausgewaehlt: !pos.ausgewaehlt })}
+                          className={`mt-0.5 w-5 h-5 rounded-md border-2 flex-shrink-0 flex items-center justify-center transition-all ${
+                            pos.ausgewaehlt
+                              ? 'bg-[#00D4AA] border-[#00D4AA]'
+                              : 'border-[#444] bg-transparent'
+                          }`}
+                        >
+                          {pos.ausgewaehlt && (
+                            <svg className="w-3 h-3 text-black" fill="none" stroke="currentColor" strokeWidth={3} viewBox="0 0 24 24">
+                              <path d="M5 13l4 4L19 7" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          )}
+                        </button>
+
+                        {/* Felder */}
+                        <div className="flex-1 min-w-0">
+                          {/* Duplikat-Warnung */}
+                          {pos.istDuplikat && (
+                            <div className="flex items-center gap-1.5 mb-2 text-xs text-amber-400/80">
+                              <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                                <path d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" strokeLinecap="round"/>
+                              </svg>
+                              <span>{pos.duplikatHinweis}</span>
+                            </div>
+                          )}
+
+                          {/* Beschreibung */}
+                          <input
+                            type="text"
+                            value={pos.beschreibung}
+                            onChange={e => importVorschauUpdate(idx, { beschreibung: e.target.value })}
+                            className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white placeholder-[#555] focus:outline-none focus:border-[#00D4AA] transition-colors mb-2"
+                          />
+
+                          {/* Preis + Einheit */}
+                          <div className="flex gap-2">
+                            <div className="relative flex-1">
+                              <input
+                                type="number"
+                                value={pos.preis}
+                                onChange={e => importVorschauUpdate(idx, { preis: parseFloat(e.target.value) || 0 })}
+                                className="w-full bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00D4AA] transition-colors pr-8"
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-[#666]">€</span>
+                            </div>
+                            <select
+                              value={pos.einheit}
+                              onChange={e => importVorschauUpdate(idx, { einheit: e.target.value })}
+                              className="bg-[#111] border border-[#2a2a2a] rounded-lg px-3 py-2 text-sm text-white focus:outline-none focus:border-[#00D4AA] transition-colors"
+                            >
+                              {['m²','Stk.','Std.','m','pauschal'].map(e => <option key={e}>{e}</option>)}
+                            </select>
+                          </div>
+                        </div>
+
+                        {/* Löschen (aus Vorschau entfernen) */}
+                        <button
+                          type="button"
+                          onClick={() => setImportVorschau(prev => prev?.filter((_, i) => i !== idx) ?? null)}
+                          className="text-[#555] hover:text-red-400 transition-colors flex-shrink-0 mt-1"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
+                            <path d="M6 18L18 6M6 6l12 12" strokeLinecap="round"/>
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Footer */}
+                <div className="px-6 py-4 border-t border-[#2a2a2a] flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setImportVorschau(null)}
+                    className="px-4 py-2.5 text-sm text-[#888] hover:text-white border border-[#2a2a2a] rounded-xl transition-all"
+                  >
+                    Abbrechen
+                  </button>
+                  <button
+                    type="button"
+                    onClick={importBestaetigen}
+                    disabled={importSpeichernLoading || anzahlAusgewaehlt === 0}
+                    className="flex-1 bg-[#00D4AA] text-black font-medium py-2.5 rounded-xl hover:opacity-90 disabled:opacity-40 transition-all text-sm"
+                  >
+                    {importSpeichernLoading
+                      ? 'Wird gespeichert...'
+                      : anzahlAusgewaehlt === 0
+                        ? 'Keine ausgewählt'
+                        : `${anzahlAusgewaehlt} ${anzahlAusgewaehlt === 1 ? 'Position' : 'Positionen'} hinzufügen`
+                    }
                   </button>
                 </div>
-              )}
-            </div>
+              </div>
+            )}
 
-            {/* Preisliste */}
+            {/* ── Preisliste ── */}
             <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
               <p className="text-xs text-[#999] uppercase tracking-widest mb-1">Meine Preisliste</p>
               <p className="text-xs text-[#888] mb-5 leading-relaxed">
@@ -565,7 +714,6 @@ function ProfilPageInner() {
                 <div className="space-y-2 mb-5">
                   {preise.map(p => (
                     <div key={p.id} className="flex items-start justify-between bg-[#111] rounded-xl px-4 py-3 group gap-3">
-                      {/* Titel immer vollständig anzeigen – kein truncate */}
                       <div className="flex-1">
                         <p className="text-sm font-medium text-white leading-snug">{p.beschreibung}</p>
                         <p className="text-xs text-[#00D4AA] mt-0.5 tabular-nums">
@@ -583,17 +731,15 @@ function ProfilPageInner() {
                 </div>
               )}
 
-              {/* Manuell hinzufügen – überarbeitetes Layout */}
+              {/* Manuell hinzufügen */}
               <div className="border-t border-[#2a2a2a] pt-5">
                 <p className="text-xs text-[#999] mb-3">Manuell hinzufügen</p>
                 <div className="flex flex-col gap-2">
-                  {/* Zeile 1: Beschreibung (voll) */}
                   <input type="text" value={neuePreis.beschreibung}
                     onChange={e => setNeuePreis({ ...neuePreis, beschreibung: e.target.value })}
                     onKeyDown={e => e.key === 'Enter' && preisHinzufuegen()}
                     placeholder="Beschreibung, z.B. Fliesenlegen"
                     className="w-full bg-[#111] border border-[#2a2a2a] rounded-xl px-3 py-2.5 text-sm text-white placeholder-[#555] focus:outline-none focus:border-[#d4e840] transition-colors"/>
-                  {/* Zeile 2: Preis | Zeile 3 Mobile: Einheit – auf Desktop nebeneinander */}
                   <div className="flex flex-col sm:flex-row gap-2">
                     <input type="number" value={neuePreis.preis}
                       onChange={e => setNeuePreis({ ...neuePreis, preis: e.target.value })}
@@ -606,7 +752,6 @@ function ProfilPageInner() {
                       {['m²','Stk.','Std.','m','pauschal'].map(e => <option key={e}>{e}</option>)}
                     </select>
                   </div>
-                  {/* Zeile 3: + Button voll breit */}
                   <button type="button" onClick={preisHinzufuegen}
                     disabled={!neuePreis.beschreibung || !neuePreis.preis}
                     className="w-full bg-[#d4e840] text-black rounded-xl py-2.5 text-sm font-bold hover:opacity-90 disabled:opacity-40 transition-all">
@@ -621,72 +766,6 @@ function ProfilPageInner() {
           </div>
         )}
 
-        {/* ─── TOKEN ─── */}
-        {activeTab === 'token' && (
-          <div className="space-y-6">
-            {/* Guthaben */}
-            <div className="bg-[#181818] border border-[#2a2a2a] rounded-2xl p-6">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-xs text-[#999] uppercase tracking-widest">Guthaben</p>
-                <span className="text-3xl font-semibold text-[#d4e840] tabular-nums">{tokenGuthaben} Token</span>
-              </div>
-              <div className="bg-[#111] rounded-full h-2 overflow-hidden">
-                <div className="h-full rounded-full transition-all" style={{
-                  width: `${Math.min((tokenGuthaben/100)*100,100)}%`,
-                  background: 'linear-gradient(to right, #d4e840, #00D4AA)',
-                }}/>
-              </div>
-              <p className="text-xs text-[#aaa] mt-2">
-                ~{Math.floor(tokenGuthaben/1.5)} Dokumente verbleibend
-              </p>
-            </div>
-
-            {/* Pakete */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {PAKETE.map(paket => (
-                <div key={paket.id} className={`bg-[#181818] rounded-2xl p-6 flex flex-col ${paket.beliebt ? 'border-2 border-[#d4e840]' : 'border border-[#2a2a2a]'}`}>
-                  {paket.beliebt && (
-                    <span className="text-xs bg-[#d4e840]/20 text-[#d4e840] px-3 py-1 rounded-full self-start mb-4 font-medium border border-[#d4e840]/30">
-                      Beliebt
-                    </span>
-                  )}
-                  <p className="text-lg font-semibold text-white">{paket.name}</p>
-                  <p className="text-4xl font-bold mt-2 tabular-nums text-white">{paket.token}</p>
-                  <p className="text-sm text-[#888] mb-1">Token</p>
-                  <p className="text-xl font-medium text-[#d4e840] mb-4">{paket.preis} €</p>
-                  <p className="text-xs text-[#999] mb-5 flex-1">~{Math.floor(paket.token/1.5)} Dokumente</p>
-                  <button type="button" onClick={() => tokenKaufen(paket)} disabled={tokenLoading === paket.id}
-                    className={`w-full py-3 rounded-xl text-sm font-medium transition-all disabled:opacity-40 ${
-                      paket.beliebt
-                        ? 'bg-[#d4e840] text-black hover:opacity-90'
-                        : 'bg-[#2a2a2a] text-white hover:bg-[#333]'
-                    }`}>
-                    {tokenLoading === paket.id
-                      ? <span className="flex items-center justify-center gap-2">
-                          <svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24">
-                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/>
-                          </svg>
-                          Laden...
-                        </span>
-                      : `${paket.preis} € kaufen`}
-                  </button>
-                </div>
-              ))}
-            </div>
-
-            {/* Mint-Hinweis unten */}
-            <div className="bg-[#00D4AA]/8 border border-[#00D4AA]/20 rounded-2xl p-4 flex items-start gap-3">
-              <svg className="w-5 h-5 text-[#00D4AA] flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
-                <path d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" strokeLinecap="round"/>
-              </svg>
-              <div>
-                <p className="text-sm text-[#00D4AA] font-medium">Token verfallen nicht</p>
-                <p className="text-xs text-[#00D4AA]/70 mt-0.5">Alle gekauften Token bleiben dauerhaft auf deinem Konto. Sicher bezahlt über Stripe.</p>
-              </div>
-            </div>
-          </div>
-        )}
       </div>
 
       <div className="h-24 md:h-8"/>
