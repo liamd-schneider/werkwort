@@ -21,7 +21,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <link rel="manifest" href="/manifest.json"></link>
       <body className={`${inter.className} bg-[#0c0c0c] text-[#f0ede8]`}>
         <BottomNav />
-        <main className="md:ml-[200px] min-h-screen bg-[#0c0c0c]">
+        <main className="md:ml-[200px] min-h-screen bg-[#0c0c0c] [&:has(#landing)]:ml-0 [&:has(#landing)]:md:ml-0">
           {children}
         </main>
       </body>

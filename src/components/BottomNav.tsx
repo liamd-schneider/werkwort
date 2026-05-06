@@ -470,7 +470,7 @@ export function BottomNav() {
     return () => { document.body.style.overflow = '' }
   }, [open])
 
-  if (pathname === '/auth') return null
+  if (pathname === '/' || pathname === '/auth') return null
 
   return (
     <>
