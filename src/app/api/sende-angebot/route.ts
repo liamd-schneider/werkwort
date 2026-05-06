@@ -163,7 +163,7 @@ export async function POST(req: NextRequest) {
 </body></html>`
 
     // ── Versand ───────────────────────────────────────────────────────────────
-    const { error } = await resend.emails.send({
+     const { error } = await resend.emails.send({
       from:        `${betrieb?.name || 'Werkwort'} <noreply@e-werkwort.com>`,
       to:          kundeEmail,
       replyTo:     betrieb?.email || undefined,
