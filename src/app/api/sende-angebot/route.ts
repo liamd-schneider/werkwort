@@ -93,73 +93,178 @@ export async function POST(req: NextRequest) {
     // ── E-Mail-HTML ───────────────────────────────────────────────────────────
     const qrBlock = qrImageUrl
       ? `
-    <div style="border:2px dashed #d4e840;border-radius:8px;padding:16px;margin:16px 0;background:#fafde8;display:table;width:100%;box-sizing:border-box;">
-      <div style="display:table-cell;vertical-align:middle;width:136px;">
-        <img src="${qrImageUrl}" width="120" height="120" alt="QR-Code" style="display:block;border-radius:4px;" />
-      </div>
-      <div style="display:table-cell;vertical-align:middle;padding-left:16px;">
-        <p style="font-size:13px;font-weight:700;color:#0c0c0c;margin:0 0 4px;">Oder QR-Code scannen →</p>
-        <p style="font-size:12px;color:#666;margin:0;">Direkt zum PDF auf Ihrem Smartphone</p>
-      </div>
+    <div style="border:2px dashed #d4e840;border-radius:8px;padding:16px;margin:16px 0;background:#fafde8;box-sizing:border-box;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" style="width:100%;">
+        <tr>
+          <td style="width:136px;vertical-align:middle;">
+            <img src="${qrImageUrl}" width="120" height="120" alt="QR-Code" style="display:block;border-radius:4px;" />
+          </td>
+          <td style="vertical-align:middle;padding-left:16px;">
+            <p style="font-size:13px;font-weight:700;color:#0c0c0c;margin:0 0 4px;">Oder QR-Code scannen →</p>
+            <p style="font-size:12px;color:#666;margin:0;">Direkt zum PDF auf Ihrem Smartphone</p>
+          </td>
+        </tr>
+      </table>
     </div>`
       : ''
 
     const emailHtml = `<!DOCTYPE html>
 <html lang="de">
-<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,sans-serif;">
-<div style="max-width:600px;margin:20px auto;background:#fff;border-radius:8px;overflow:hidden;box-shadow:0 2px 8px rgba(0,0,0,.1);">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="x-apple-disable-message-reformatting">
+  <style>
+    body, table, td, a { -webkit-text-size-adjust:100%; -ms-text-size-adjust:100%; }
+    table, td { mso-table-lspace:0pt; mso-table-rspace:0pt; }
+    img { border:0; outline:none; text-decoration:none; -ms-interpolation-mode:bicubic; }
 
-  <div style="background:#0c0c0c;padding:20px 28px;display:flex;align-items:center;justify-content:space-between;">
-    <span style="color:#fff;font-size:18px;font-weight:300;">werk<span style="font-weight:700;color:#d4e840;">wort</span></span>
-    <span style="color:#888;font-size:12px;">${typLabel} · ${dok.nummer}</span>
-  </div>
+    @media only screen and (max-width:600px) {
+      .wrapper { width:100% !important; max-width:100% !important; }
+      .content-cell { padding:20px 16px !important; }
+      .header-cell { padding:16px !important; }
+      .footer-cell { padding:12px 16px !important; }
+      .doc-number { display:none !important; }
+      .btn-link { padding:14px 20px !important; font-size:15px !important; display:block !important; text-align:center !important; }
+      .amount-value { font-size:17px !important; }
+      .info-table td { font-size:12px !important; }
+      .qr-block-table { display:block !important; width:100% !important; }
+      .qr-img-td { display:block !important; width:100% !important; text-align:center !important; padding-bottom:12px !important; }
+      .qr-img-td img { margin:0 auto !important; }
+      .qr-text-td { display:block !important; width:100% !important; padding-left:0 !important; text-align:center !important; }
+    }
+  </style>
+</head>
+<body style="margin:0;padding:0;background:#f0f0f0;font-family:Arial,Helvetica,sans-serif;-webkit-font-smoothing:antialiased;">
 
-  <div style="padding:28px;">
-    <p style="font-size:15px;color:#333;margin:0 0 8px;">Sehr geehrte${dok.kunde_name.includes('Familie') ? '' : 'r'} ${dok.kunde_name},</p>
-    <p style="font-size:14px;color:#555;line-height:1.6;margin:0 0 20px;">
-      ${isRechnung
-        ? `anbei erhalten Sie unsere Rechnung für die erbrachten Leistungen${dok.zugferd_xml ? ' als <strong>E-Rechnung (ZUGFeRD EN16931)</strong>' : ''}.`
-        : `vielen Dank für Ihr Interesse. Anbei finden Sie unser Angebot für die angefragten Leistungen.`}
-    </p>
+<table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="background:#f0f0f0;">
+  <tr>
+    <td align="center" style="padding:20px 12px;">
+      <table role="presentation" cellpadding="0" cellspacing="0" border="0" class="wrapper" style="max-width:600px;width:100%;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 2px 12px rgba(0,0,0,0.12);">
 
-    <div style="background:#f9f9f9;border-radius:8px;padding:16px;margin-bottom:20px;">
-      <table style="width:100%;border-collapse:collapse;">
-        <tr><td style="color:#888;font-size:13px;padding:4px 0;">${typLabel}-Nummer</td><td style="font-size:13px;text-align:right;font-weight:600;">${dok.nummer}</td></tr>
-        <tr><td style="color:#888;font-size:13px;padding:4px 0;">Gesamtbetrag (inkl. MwSt.)</td><td style="font-size:15px;text-align:right;font-weight:700;">${dok.brutto.toLocaleString('de-DE',{minimumFractionDigits:2})} €</td></tr>
-        ${dok.ausfuehrungszeitraum ? `<tr><td style="color:#888;font-size:13px;padding:4px 0;">Ausführungszeitraum</td><td style="font-size:13px;text-align:right;">${dok.ausfuehrungszeitraum}</td></tr>` : ''}
-        ${faelligAm ? `<tr><td style="color:#888;font-size:13px;padding:4px 0;">${isRechnung ? 'Zahlbar bis' : 'Gültig bis'}</td><td style="font-size:13px;text-align:right;${isRechnung ? 'font-weight:600;color:#e85d24;' : ''}">${faelligAm}</td></tr>` : ''}
-        ${isRechnung && betrieb?.iban ? `<tr><td style="color:#888;font-size:13px;padding:4px 0;">IBAN</td><td style="font-size:13px;text-align:right;font-family:monospace;">${betrieb.iban}</td></tr>` : ''}
+        <!-- Header -->
+        <tr>
+          <td class="header-cell" style="background:#0c0c0c;padding:20px 28px;">
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+              <tr>
+                <td style="vertical-align:middle;">
+                  <span style="font-size:18px;font-family:Arial,sans-serif;">
+                    <span style="color:#d4e840;font-weight:700;">e</span><span style="color:#ffffff;font-weight:300;">Werk</span><span style="color:#d4e840;font-weight:700;">wort</span>
+                  </span>
+                </td>
+                <td class="doc-number" align="right" style="vertical-align:middle;">
+                  <span style="color:#888888;font-size:12px;">${typLabel} · ${dok.nummer}</span>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <!-- Body -->
+        <tr>
+          <td class="content-cell" style="padding:28px;">
+
+            <p style="font-size:15px;color:#333333;margin:0 0 8px;line-height:1.5;">Sehr geehrte${dok.kunde_name.includes('Familie') ? '' : 'r'} ${dok.kunde_name},</p>
+            <p style="font-size:14px;color:#555555;line-height:1.7;margin:0 0 24px;">
+              ${isRechnung
+                ? `anbei erhalten Sie unsere Rechnung für die erbrachten Leistungen${dok.zugferd_xml ? ' als <strong>E-Rechnung (ZUGFeRD EN16931)</strong>' : ''}.`
+                : `vielen Dank für Ihr Interesse. Anbei finden Sie unser Angebot für die angefragten Leistungen.`}
+            </p>
+
+            <!-- Info-Box -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="info-table" style="background:#f9f9f9;border-radius:8px;margin-bottom:24px;">
+              <tr>
+                <td style="padding:16px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                      <td style="color:#888888;font-size:13px;padding:5px 0;border-bottom:1px solid #eeeeee;">${typLabel}-Nummer</td>
+                      <td align="right" style="font-size:13px;font-weight:600;color:#111111;padding:5px 0;border-bottom:1px solid #eeeeee;">${dok.nummer}</td>
+                    </tr>
+                    <tr>
+                      <td style="color:#888888;font-size:13px;padding:5px 0;border-bottom:1px solid #eeeeee;">Gesamtbetrag (inkl. MwSt.)</td>
+                      <td align="right" class="amount-value" style="font-size:15px;font-weight:700;color:#0c0c0c;padding:5px 0;border-bottom:1px solid #eeeeee;">${dok.brutto.toLocaleString('de-DE', { minimumFractionDigits: 2 })} €</td>
+                    </tr>
+                    ${dok.ausfuehrungszeitraum ? `
+                    <tr>
+                      <td style="color:#888888;font-size:13px;padding:5px 0;border-bottom:1px solid #eeeeee;">Ausführungszeitraum</td>
+                      <td align="right" style="font-size:13px;color:#333333;padding:5px 0;border-bottom:1px solid #eeeeee;">${dok.ausfuehrungszeitraum}</td>
+                    </tr>` : ''}
+                    ${faelligAm ? `
+                    <tr>
+                      <td style="color:#888888;font-size:13px;padding:5px 0;${isRechnung && !betrieb?.iban ? '' : 'border-bottom:1px solid #eeeeee;'}">${isRechnung ? 'Zahlbar bis' : 'Gültig bis'}</td>
+                      <td align="right" style="font-size:13px;padding:5px 0;font-weight:${isRechnung ? '600' : '400'};color:${isRechnung ? '#e85d24' : '#333333'};${isRechnung && !betrieb?.iban ? '' : 'border-bottom:1px solid #eeeeee;'}">${faelligAm}</td>
+                    </tr>` : ''}
+                    ${isRechnung && betrieb?.iban ? `
+                    <tr>
+                      <td style="color:#888888;font-size:13px;padding:5px 0;">IBAN</td>
+                      <td align="right" style="font-size:12px;color:#333333;padding:5px 0;font-family:monospace,Courier,serif;word-break:break-all;">${betrieb.iban}</td>
+                    </tr>` : ''}
+                  </table>
+                  ${isRechnung ? `<p style="font-size:12px;color:#888888;margin:10px 0 0;">Verwendungszweck: <strong>${dok.nummer}</strong></p>` : ''}
+                </td>
+              </tr>
+            </table>
+
+            <!-- CTA Button -->
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" style="margin:0 0 20px;">
+              <tr>
+                <td align="center">
+                  <a href="${pdfUrl}" class="btn-link" style="background:#d4e840;color:#0c0c0c;padding:13px 32px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block;letter-spacing:0.01em;">
+                    ${typLabel} als PDF öffnen
+                  </a>
+                </td>
+              </tr>
+            </table>
+
+            <!-- QR-Block -->
+            ${qrImageUrl ? `
+            <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%" class="qr-block-table" style="border:2px dashed #d4e840;border-radius:8px;background:#fafde8;margin:0 0 20px;">
+              <tr>
+                <td style="padding:16px;">
+                  <table role="presentation" cellpadding="0" cellspacing="0" border="0" width="100%">
+                    <tr>
+                      <td class="qr-img-td" style="width:136px;vertical-align:middle;">
+                        <img src="${qrImageUrl}" width="120" height="120" alt="QR-Code" style="display:block;border-radius:4px;" />
+                      </td>
+                      <td class="qr-text-td" style="vertical-align:middle;padding-left:16px;">
+                        <p style="font-size:13px;font-weight:700;color:#0c0c0c;margin:0 0 4px;">QR-Code scannen →</p>
+                        <p style="font-size:12px;color:#666666;margin:0;">Direkt zum PDF auf Ihrem Smartphone</p>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>` : ''}
+
+            <!-- Grußformel -->
+            <p style="font-size:13px;color:#555555;margin:0;line-height:1.7;">
+              ${isRechnung
+                ? 'Bei Fragen zur Rechnung stehen wir Ihnen gerne zur Verfügung.'
+                : 'Bei Rückfragen oder zur Auftragserteilung antworten Sie bitte direkt auf diese E-Mail.'}
+              <br>Mit freundlichen Grüßen,<br><strong>${betrieb?.name || ''}</strong>
+            </p>
+
+          </td>
+        </tr>
+
+        <!-- Footer -->
+        <tr>
+          <td class="footer-cell" style="background:#f9f9f9;padding:14px 28px;border-top:1px solid #eeeeee;">
+            <p style="font-size:11px;color:#aaaaaa;margin:0 0 5px;line-height:1.6;">
+              ${betrieb?.name || ''} · ${betrieb?.adresse || ''}${betrieb?.steuernummer ? ' · Steuernr.: ' + betrieb.steuernummer : ''}${betrieb?.iban ? ' · IBAN: ' + betrieb.iban : ''}
+            </p>
+            <p style="font-size:10px;color:#cccccc;margin:0;line-height:1.6;">
+              Diese E-Mail wurde im Auftrag von ${betrieb?.name || ''} über eWerkwort versendet.
+              Ihre E-Mail-Adresse wird ausschließlich zur Übermittlung dieses Dokuments verwendet (Art. 6 Abs. 1 lit. b DSGVO).
+            </p>
+          </td>
+        </tr>
+
       </table>
-      ${isRechnung ? `<p style="font-size:12px;color:#888;margin:8px 0 0;">Verwendungszweck: <strong>${dok.nummer}</strong></p>` : ''}
-    </div>
+    </td>
+  </tr>
+</table>
 
-    <div style="text-align:center;margin:20px 0;">
-      <a href="${pdfUrl}" style="background:#d4e840;color:#0c0c0c;padding:12px 28px;border-radius:6px;text-decoration:none;font-weight:700;font-size:14px;display:inline-block;">
-        ${typLabel} als PDF öffnen
-      </a>
-    </div>
-
-    ${qrBlock}
-
-    <p style="font-size:13px;color:#555;margin:16px 0 0;">
-      ${isRechnung
-        ? 'Bei Fragen zur Rechnung stehen wir Ihnen gerne zur Verfügung.'
-        : 'Bei Rückfragen oder zur Auftragserteilung antworten Sie bitte direkt auf diese E-Mail.'}
-      <br>Mit freundlichen Grüßen,<br><strong>${betrieb?.name||''}</strong>
-    </p>
-  </div>
-
-  <div style="background:#f9f9f9;padding:14px 28px;border-top:1px solid #eee;">
-    <p style="font-size:11px;color:#aaa;margin:0;line-height:1.6;">
-      ${betrieb?.name||''} · ${betrieb?.adresse||''}${betrieb?.steuernummer?' · Steuernr.: '+betrieb.steuernummer:''}${betrieb?.iban?' · IBAN: '+betrieb.iban:''}
-    </p>
-    <p style="font-size:10px;color:#ccc;margin:5px 0 0;">
-      Diese E-Mail wurde im Auftrag von ${betrieb?.name||''} über Werkwort versendet.
-      Ihre E-Mail-Adresse wird ausschließlich zur Übermittlung dieses Dokuments verwendet (Art. 6 Abs. 1 lit. b DSGVO).
-    </p>
-  </div>
-</div>
 </body></html>`
 
     // ── Versand ───────────────────────────────────────────────────────────────
